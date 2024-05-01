@@ -6,4 +6,8 @@ set(CMAKE_C_STANDARD 11)
 include_directories(.)
 
 add_executable(STG_Communication_System
-        main.c)
+        main.c
+        common/constants.h
+        common/event_payloads.h
+        election/leader_elect_manager.h
+        election/leader_elect_manager.c)
