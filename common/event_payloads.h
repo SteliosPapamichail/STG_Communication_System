@@ -18,7 +18,7 @@ typedef struct e_gs_connection_info {
  */
 typedef struct e_add_metric_info {
     int st_rank;
-    double temperature;
+    float temperature;
     struct tm timestamp;
 } st_add_metric;
 

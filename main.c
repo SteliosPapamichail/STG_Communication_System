@@ -4,6 +4,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "common/constants.h"
+#include "common/event_payloads.h"
+#include "coordinator/coordinator.h"
 #include <mpi/mpi.h>
 #include <string.h>
 
@@ -16,9 +18,9 @@ int main(int argc, char *argv[]) {
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
     // Validate and get N from command line argument
-    if (argc != 2) {
+    if (argc != 3) {
         if (rank == 0) {
-            printf("Usage: mpirun -np <N+1> %s <N>\n", argv[0]);
+            printf("Usage: mpirun -np <N+1> %s <N> <input file>\n", argv[0]);
         }
         MPI_Finalize();
         return 1;
@@ -53,7 +55,7 @@ int main(int argc, char *argv[]) {
     printf("Process [rank %d, color %d, group_rank %d, group_size %d]\n",
            rank, color, group_rank, group_size);
 
-    FILE *file = fopen(argv[1], "r");
+    FILE *file = fopen(argv[2], "r");
     if (file == NULL) {
         printf("Error opening file: %s\n", argv[1]);
         MPI_Finalize();
@@ -72,15 +74,12 @@ int main(int argc, char *argv[]) {
             // Extract information based on the line type
             sscanf(line, "%s", event); // Read event type
             if (strcmp(event, "CONNECT") == 0) {
-                // Extract data for CONNECT line (modify based on your needs)
-                sscanf(line, "%s %d %d", line_info.type, &line_info.data1, &line_info.data2);
+                gs_connect event_data = parse_connect_event(line);
+                printf("parsed connect with %d and %d\n", event_data.gs_rank, event_data.neighbor_gs_rank);
             } else if (strcmp(event, "ADD_STATUS") == 0) {
-                // Extract data for ADD_STATUS line (modify based on your needs)
-                sscanf(line, "%s %d %lf", line_info.type, &line_info.data1, &line_info.data2);
+
             } else if (strcmp(event, "ADD_ST_COORDINATES") == 0) {
-                // Extract data for ADD_ST_COORDINATES line (modify based on your needs)
-                sscanf(line, "%s %d %lf %lf %d", line_info.type, &line_info.data1,
-                       &line_info.data2, &line_info.data3, &line_info.data2);
+
             } else if (strcmp(event, "ADD_METRIC") == 0) {
                 // Handle other line types as needed
             } else if (strcmp(event, "ADD_STATUS") == 0) {
@@ -103,19 +102,28 @@ int main(int argc, char *argv[]) {
             }
         }
 
-        // check if we reached the EOF so we can terminate
-        if (line == NULL) {
-            if (ferror(file)) {
-                printf("Error reading file.\n");
-                MPI_Finalize();
-                return 1;
-            } else {
-                //TODO:sp implement TERMINATE messaging
-            }
+        // if reached, means fgets() reached EOF and got NULL
+        if (ferror(file)) {
+            printf("Error reading file.\n");
+            MPI_Finalize();
+            return 1;
+        } else {
+            //TODO:sp implement TERMINATE messaging
         }
     }
 
+    // if current process is a Satellite
+    if (rank >= 0 && rank <= n / 2 - 1) {
+
+    }
+    // if it is a Ground Station
+    if (rank >= n / 2 && rank <= n - 1) {
+        // avg temp message
+        // status check message
+    }
+
     MPI_Comm_free(&comm_group);
+
     MPI_Finalize();
 
     return 0;

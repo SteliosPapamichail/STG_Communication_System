@@ -1,27 +1,58 @@
-# MPI compiler and linker
-MPICC = mpicc
-MPICXX = mpicxx
-MPIFC = mpifort
-MPILINK = mpicc
+# Compiler
+CC = mpicc
 
-# Flags for compiling C source files
-CCFLAGS = -g -Wall
+# Directories
+COMMON_DIR = common
+COORDINATOR_DIR = coordinator
+SATELLITE_DIR = satellite
+GROUND_STATION_DIR = ground_station
+ELECTION_DIR = election
+
+# Source files
+COMMON_SRCS = $(wildcard $(COMMON_DIR)/*.c)
+COORDINATOR_SRCS = $(wildcard $(COORDINATOR_DIR)/*.c)
+SATELLITE_SRCS = $(wildcard $(SATELLITE_DIR)/*.c)
+GROUND_STATION_SRCS = $(wildcard $(GROUND_STATION_DIR)/*.c)
+ELECTION_SRCS = $(wildcard $(ELECTION_DIR)/*.c)
+ROOT_SRCS = main.c
+
+# Object files
+COMMON_OBJS = $(COMMON_SRCS:.c=.o)
+COORDINATOR_OBJS = $(COORDINATOR_SRCS:.c=.o)
+SATELLITE_OBJS = $(SATELLITE_SRCS:.c=.o)
+GROUND_STATION_OBJS = $(GROUND_STATION_SRCS:.c=.o)
+ELECTION_OBJS = $(ELECTION_SRCS:.c=.o)
+ROOT_OBJS = $(ROOT_SRCS:.c=.o)
 
 # Executable name
 EXEC = stg_system
 
-# Object files
-OBJECTS = $(patsubst %.c,%.o,$(wildcard common/*.c) $(wildcard election/*.c) main.c)
+# Flags
+CFLAGS = -Wall
+LDFLAGS = -lm
 
-.PHONY: all clean
-
+# Targets
 all: $(EXEC)
 
-$(EXEC): $(OBJECTS)
-	$(MPILINK)  $(OBJECTS) -o $(EXEC)
+$(EXEC): $(COMMON_OBJS) $(COORDINATOR_OBJS) $(SATELLITE_OBJS) $(GROUND_STATION_OBJS) $(ELECTION_OBJS) $(ROOT_OBJS)
+	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
-%.o : %.c
-	$(MPICC) $(CCFLAGS) -c $<
+# Compile rules
+$(COMMON_DIR)/%.o: $(COMMON_DIR)/%.c
+	$(CC) $(CFLAGS) -c -o $@ $<
 
+$(COORDINATOR_DIR)/%.o: $(COORDINATOR_DIR)/%.c
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+$(SATELLITE_DIR)/%.o: $(SATELLITE_DIR)/%.c
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+$(GROUND_STATION_DIR)/%.o: $(GROUND_STATION_DIR)/%.c
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+$(ELECTION_DIR)/%.o: $(ELECTION_DIR)/%.c
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+# Clean
 clean:
-	rm -f $(OBJECTS) $(EXEC) $(wildcard ./*.o)
+	rm -f $(EXEC) $(COMMON_OBJS) $(COORDINATOR_OBJS) $(SATELLITE_OBJS) $(GROUND_STATION_OBJS) $(ELECTION_OBJS) $(ROOT_OBJS)

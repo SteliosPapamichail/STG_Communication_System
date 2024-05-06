@@ -10,4 +10,14 @@ add_executable(STG_Communication_System
         common/constants.h
         common/event_payloads.h
         election/leader_elect_manager.h
-        election/leader_elect_manager.c)
+        election/leader_elect_manager.c
+        satellite/satellite.h
+        satellite/satellite.c
+        common/temp_metrics.h
+        common/temp_metrics.c
+        ground_station/ground_station.c
+        ground_station/ground_station.h
+        common/mpi_datatypes.c
+        common/mpi_datatypes.h
+        coordinator/coordinator.c
+        coordinator/coordinator.h)
