@@ -3,6 +3,7 @@
 //
 
 #include <stdio.h>
+#include <malloc.h>
 #include "ground_station.h"
 #include "../common/event_payloads.h"
 
@@ -40,3 +41,16 @@
 //
 //    printf("Coordinator: Connected ground station %d to ground station %d\n", rank, neighbor_rank);
 //}
+
+int parent_gs;
+int* neighbor_gs = NULL;
+int num_of_neighbors = 0;
+
+void add_parent_gs(int parent_rank) {
+    parent_gs = parent_rank;
+}
+
+void add_neighbor_gs(int child_rank) {
+    neighbor_gs = realloc(neighbor_gs, (num_of_neighbors + 1) * sizeof(int));
+    neighbor_gs[num_of_neighbors++] = child_rank;
+}

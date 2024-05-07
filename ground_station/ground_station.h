@@ -7,4 +7,7 @@
 
 #include <mpi/mpi.h>
 
+void add_parent_gs(int parent_rank);
+void add_neighbor_gs(int child_rank);
+
 #endif //STG_COMMUNICATION_SYSTEM_GROUND_STATION_H

@@ -11,6 +11,7 @@
 typedef struct e_gs_connection_info {
     int gs_rank;
     int neighbor_gs_rank;
+    int event_source;
 } gs_connect;
 
 /**

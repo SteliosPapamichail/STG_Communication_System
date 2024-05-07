@@ -8,6 +8,6 @@
 #include <mpi/mpi.h>
 #include "event_payloads.h"
 
-MPI_Datatype connect_event_datatype(gs_connect event);
+MPI_Datatype connect_event_datatype();
 
 #endif //STG_COMMUNICATION_SYSTEM_MPI_DATATYPES_H

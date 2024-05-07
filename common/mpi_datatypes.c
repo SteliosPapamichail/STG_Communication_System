@@ -5,7 +5,7 @@
 #include <stdio.h>
 #include "mpi_datatypes.h"
 
-MPI_Datatype connect_event_datatype(gs_connect event) {
+MPI_Datatype connect_event_datatype() {
     MPI_Datatype datatype;
 
     int block_lengths[2] = {1, 1}; // Array of lengths for each member

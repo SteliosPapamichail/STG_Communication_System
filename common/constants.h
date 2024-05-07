@@ -26,6 +26,8 @@ enum event_t {
     PRINT = 7,
     TERMINATE = 8,
     FIND_MIN_DIST = 9,
-    AVG_EARTH_TEMP_DONE = 10
+    AVG_EARTH_TEMP_DONE = 10,
+    CONNECT = 11,
+    ACK = 12
 };
 #endif //STG_COMMUNICATION_SYSTEM_CONSTANTS_H
