@@ -8,7 +8,7 @@
 #include <mpi/mpi.h>
 #include "coordinator.h"
 
-gs_connect parse_connect_event(const char *line, int source_rank) {
+gs_connect parse_connect_event(const char *line) {
     gs_connect data;
     char *str = strtok((char*)line, " "); // Cast line to avoid warnings
 
@@ -31,7 +31,5 @@ gs_connect parse_connect_event(const char *line, int source_rank) {
         str = strtok(NULL, " ");
         count++;
     }
-
-    data.event_source = source_rank;
     return data;
 }

@@ -7,6 +7,6 @@
 
 #include "../common/event_payloads.h"
 
-gs_connect parse_connect_event(const char *line, int source_rank);
+gs_connect parse_connect_event(const char *line);
 
 #endif //STG_COMMUNICATION_SYSTEM_COORDINATOR_H

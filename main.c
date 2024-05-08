@@ -39,7 +39,7 @@ int main(int argc, char *argv[]) {
     // Assign ranks to groups based on their position relative to N
     if (rank == n - 1) {
         color = COORDINATOR_GROUP_ID;
-    } else if (rank < n / 2) {
+    } else if (rank < (n - 1) / 2) {
         color = SATELLITE_GROUP_ID; // processes 0 to N/2-1
     } else {
         color = GROUND_STATION_GROUP_ID; // processes N/2 to N-1
@@ -57,10 +57,6 @@ int main(int argc, char *argv[]) {
     MPI_Comm_rank(comm_group, &group_rank);
     MPI_Comm_size(comm_group, &group_size);
 
-    // Print information about each process' group
-    printf("Process [rank %d, color %d, group_rank %d, group_size %d]\n",
-           rank, color, group_rank, group_size);
-
     FILE *file = fopen(argv[2], "r");
     if (file == NULL) {
         printf("Error opening file: %s\n", argv[1]);
@@ -71,29 +67,30 @@ int main(int argc, char *argv[]) {
     // Parse input file if we are the coordinator
     if (rank == n - 1) {
         char line[MAX_LINE_LENGTH];
-        char event[MAX_LINE_LENGTH];
 
         //todo move to coordinator
         int connect_ack_count = 0;
         MPI_Status status;
 
-        while (fgets(line, MAX_LINE_LENGTH, file) != NULL) { // read line by line
+        while (fgets(line, MAX_LINE_LENGTH, file) != NULL) {
+            char event[MAX_LINE_LENGTH];
+            // read line by line
             // Remove trailing newline character
             line[strcspn(line, "\n")] = '\0';
             // Extract information based on the line type
             sscanf(line, "%s", event); // Read event type
 
-            int is_connect_event = strcmp(event, "CONNECT");
+            const int is_connect_event = strcmp(event, "CONNECT");
 
             if (is_connect_event == 0) {
-                gs_connect event_data = parse_connect_event(line, rank);
+                gs_connect event_data = parse_connect_event(line);
                 // send CONNECT to gs_rank
-                printf("Coordinator sending connect.\n");
+                printf("Coordinator sending connect to %d.\n", event_data.gs_rank);
                 MPI_Send(&event_data, 1, connect_datatype, event_data.gs_rank, CONNECT, MPI_COMM_WORLD);
             }
 
-            printf("proceeding after connect in coordinator loop. \n");
-            if (is_connect_event != 0) { // found different event, so we wait for n/2 ack
+            if (is_connect_event != 0) {
+                // found different event, so we wait for n/2 ack
                 printf("did not find connect event. \n");
                 while (connect_ack_count < (n - 1) / 2) {
                     printf("coordinator waiting...\n");
@@ -101,19 +98,19 @@ int main(int argc, char *argv[]) {
                     MPI_Recv((void *) 0, 0, MPI_INT, MPI_ANY_SOURCE, ACK, MPI_COMM_WORLD, &status);
 
                     if (status.MPI_TAG == ACK) {
-                        printf("coordinator got ACK\n");
                         connect_ack_count++;
+                        printf("coordinator got ACK. Count is %d\n", connect_ack_count);
                     }
                 }
             } else {
                 continue;
             }
 
+            printf("coordinator exited wait.\n");
+
             // parse other events after CONNECT events have finished
             if (strcmp(event, "ADD_STATUS") == 0) {
-
             } else if (strcmp(event, "ADD_ST_COORDINATES") == 0) {
-
             } else if (strcmp(event, "ADD_METRIC") == 0) {
                 // Handle other line types as needed
             } else if (strcmp(event, "ADD_GS_COORDINATES") == 0) {
@@ -127,9 +124,7 @@ int main(int argc, char *argv[]) {
             } else if (strcmp(event, "PRINT") == 0) {
                 // Handle other line types as needed
             } else if (strcmp(event, "START_LELECT_ST") == 0) {
-
             } else if (strcmp(event, "START_LELECT_GS") == 0) {
-
             } else {
                 // or could ignore the event and continue
                 printf("Invalid event type %s found in file!\n", event);
@@ -149,51 +144,66 @@ int main(int argc, char *argv[]) {
     }
 
     // if current process is a Satellite
-    if (rank >= 0 && rank <= n / 2 - 1) {
-
+    if (rank >= 0 && rank <= (n - 1) / 2 - 1) {
     }
     // if it is a Ground Station
-    if (rank >= n / 2 && rank <= n - 1) {
+    if (rank >= (n - 1) / 2 && rank <= n - 1) {
         // connect message
         // avg temp message
         // status check message
+        MPI_Status status_world, status_gs;
+        int probe_world_flag, probe_gs_flag;
 
-        // Handle CONNECT events and use the group-ranks for gs-to-gs communication
-        gs_connect received_data;
-        MPI_Status status;
-        // receive connect event from coordinator
-        MPI_Recv(&received_data, 1, connect_datatype, n - 1, CONNECT, MPI_COMM_WORLD, &status);
+        do {
+            MPI_Iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &probe_world_flag, &status_world);
 
-        if (received_data.event_source == n - 1) {
-            printf("STG %d (local) got connect from coordinator\n", group_rank);
-            // add as parent with group rank, not global rank
-            add_parent_gs(received_data.neighbor_gs_rank % group_size);
-            received_data.event_source = group_rank;
-            // notify parent that we are its neighbor
-            MPI_Send(&received_data, 1, connect_datatype, received_data.neighbor_gs_rank, CONNECT, comm_group);
-        }
+            if (probe_world_flag && status_world.MPI_TAG == CONNECT && status_world.MPI_SOURCE == n - 1) {
+                // Handle CONNECT from coordinator
+                gs_connect received_data;
 
-        // receive connect event from other sources in the gs comm group (should be from other ground stations)
-        MPI_Recv(&received_data, 1, connect_datatype, MPI_ANY_SOURCE, CONNECT, comm_group, &status);
+                // receive connect event from coordinator
+                MPI_Recv(&received_data, 1, connect_datatype, n - 1, MPI_ANY_TAG, MPI_COMM_WORLD, &status_world);
 
-        if (status.MPI_TAG == CONNECT) {
-            if (received_data.event_source == (received_data.gs_rank %
-                                               group_size)) { // add as child since the event came from the gs_rank source
-                printf("GS neighbor %d (local) got CONNECT from gs_rank %d (local). Sending ACK \n", group_rank, received_data.event_source);
-                add_neighbor_gs(received_data.event_source); // add neighbor with group rank
-                MPI_Send((void *) 0, 0, MPI_INT, received_data.event_source, ACK, comm_group);
+                printf("GS %d got connect from coordinator\n", rank);
+                // add as parent with group rank, not global rank
+                add_parent_gs(received_data.neighbor_gs_rank % group_size);
+                // notify parent that we are its neighbor
+                MPI_Send(&received_data, 1, connect_datatype, received_data.neighbor_gs_rank % group_size, CONNECT,
+                         comm_group);
+
+                // receive ack response from neighbor_gs_rank
+                printf("%d waiting to receive ACK from %d\n", rank, received_data.neighbor_gs_rank);
+                MPI_Recv((void *) 0, 0, MPI_INT, received_data.neighbor_gs_rank % group_size, ACK, comm_group,
+                         &status_world);
+
+                if (status_world.MPI_TAG == ACK) {
+                    printf("GS rank %d (local) got ACK from neighbor %d (local). Sending ACK TO COORDINATOR. \n",
+                           group_rank,
+                           status_world.MPI_SOURCE % group_size);
+                    // gs_rank got ACK from neighbor_gs_rank
+                    // send ACK back to the coordinator
+                    MPI_Send((void *) 0, 0, MPI_INT, n - 1, ACK, MPI_COMM_WORLD);
+                }
             }
-        }
 
-        // receive ack response from neighbor_gs_rank
-        MPI_Recv((void *) 0, 0, MPI_INT, MPI_ANY_SOURCE, ACK, comm_group, &status);
+            MPI_Iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, comm_group, &probe_gs_flag, &status_gs);
 
-        if (status.MPI_TAG == ACK) {
-            printf("GS rank %d (local) got ACK from neighbor %d (local). Sending ACK TO COORDINATOR. \n", group_rank, status.MPI_SOURCE % group_size);
-            // gs_rank got ACK from neighbor_gs_rank
-            // send ACK back to the coordinator
-            MPI_Send((void *) 0, 0, MPI_INT, n - 1, ACK, MPI_COMM_WORLD);
-        }
+            if (probe_gs_flag && status_gs.MPI_TAG == CONNECT) {
+                // got CONNECT from another GS
+                gs_connect received_data;
+
+                MPI_Recv(&received_data, 1, connect_datatype, MPI_ANY_SOURCE, CONNECT, comm_group, &status_gs);
+
+                if (status_gs.MPI_SOURCE == received_data.gs_rank % group_size) {
+                    // add as child since the event came from the gs_rank source
+                    printf("GS neighbor %d got CONNECT from gs_rank %d . Sending ACK to parent %d.\n",
+                           rank,
+                           received_data.gs_rank, status_gs.MPI_SOURCE + group_size);
+                    add_neighbor_gs(status_gs.MPI_SOURCE); // add neighbor with group rank
+                    MPI_Send((void *) 0, 0, MPI_INT, status_gs.MPI_SOURCE, ACK, comm_group);
+                }
+            }
+        } while (status_world.MPI_TAG != TERMINATE);
     }
 
     MPI_Type_free(&connect_datatype);
