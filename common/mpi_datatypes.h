@@ -10,4 +10,10 @@
 
 MPI_Datatype connect_event_datatype();
 
+MPI_Datatype add_status_event_datatype();
+
+MPI_Datatype add_st_coords_event_datatype(MPI_Datatype);
+
+MPI_Datatype coordinates_datatype();
+
 #endif //STG_COMMUNICATION_SYSTEM_MPI_DATATYPES_H

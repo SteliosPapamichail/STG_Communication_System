@@ -10,26 +10,44 @@
 
 gs_connect parse_connect_event(const char *line) {
     gs_connect data;
-    char *str = strtok((char*)line, " "); // Cast line to avoid warnings
+    const char *token = strtok((char *) line, " "); // Cast line to avoid warnings
+    token = strtok(NULL, " ");
+    data.gs_rank = atoi(token);
+    token = strtok(NULL, " ");
+    data.neighbor_gs_rank = atoi(token);
+    return data;
+}
 
-    int count = 0;
-    int rank;
-    while (str != NULL) {
-        if (count > 0) {
-            if (sscanf(str, "%d", &rank) != 1) {
-                printf("");
-                MPI_Finalize();
-                exit(-1);
-            } else {
-                if (count == 1) {
-                    data.gs_rank = rank;
-                } else if (count == 2) {
-                    data.neighbor_gs_rank = rank;
-                }
-            }
-        }
-        str = strtok(NULL, " ");
-        count++;
-    }
+st_add_status parse_add_status_event(const char *line) {
+    st_add_status data;
+
+    // Tokenize the line
+    const char *token = strtok((char *) line, " ");
+
+    token = strtok(NULL, " ");
+    // Parse the first token (integer)
+    data.st_rank = atoi(token);
+
+    // Parse the second token (float)
+    token = strtok(NULL, " ");
+    data.status = atof(token);
+
+    return data;
+}
+
+st_add_coords parse_st_add_coords_event(const char *line) {
+    st_add_coords data;
+
+    const char *token = strtok((char *) line, " ");
+    token = strtok(NULL, " "); // skip event
+
+    // could use loops here :)
+    data.st_rank = atoi(token);
+    token = strtok(NULL, " "); // skip event
+    data.coords[0] = atof(token); // lat
+    token = strtok(NULL, " ");
+    data.coords[1] = atof(token); // longitude
+    token = strtok(NULL, " ");
+    data.coords[2] = atof(token); // alt
     return data;
 }

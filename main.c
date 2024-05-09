@@ -11,8 +11,12 @@
 #include <mpi/mpi.h>
 #include <string.h>
 
+#include "satellite/satellite.h"
+
+#define CONNECT_ACK_TOTAL(x) (((x - 1)/2) - 1)
+
 int main(int argc, char *argv[]) {
-    int rank, size, n, color;
+    int rank, size, color;
     MPI_Comm comm_world, comm_group;
 
     MPI_Init(&argc, &argv);
@@ -22,12 +26,12 @@ int main(int argc, char *argv[]) {
     // Validate and get N from command line argument
     if (argc != 3) {
         if (rank == 0) {
-            printf("Usage: mpirun -np <N+1> %s <N+1> <input file>\n", argv[0]);
+            printf("Usage: mpirun -np <N+1> %s <N> <input file>\n", argv[0]);
         }
         MPI_Finalize();
         return 1;
     }
-    n = atoi(argv[1]);
+    int n = atoi(argv[1]) + 1;
     if (n <= 0 || size != n) {
         if (rank == 0) {
             printf("Invalid arguments. N must be positive and total processes (N+1) must match.\n");
@@ -50,7 +54,13 @@ int main(int argc, char *argv[]) {
 
     // create custom MPI data types and commit them so they can be used
     MPI_Datatype connect_datatype = connect_event_datatype();
+    MPI_Datatype add_status_datatype = add_status_event_datatype();
+    MPI_Datatype coords_datatype = coordinates_datatype();
+    MPI_Datatype st_add_coords_datatype = add_st_coords_event_datatype(coords_datatype);
     MPI_Type_commit(&connect_datatype);
+    MPI_Type_commit(&add_status_datatype);
+    MPI_Type_commit(&coords_datatype);
+    MPI_Type_commit(&st_add_coords_datatype);
 
     // Identify group information within each group
     int group_rank, group_size;
@@ -85,32 +95,29 @@ int main(int argc, char *argv[]) {
             if (is_connect_event == 0) {
                 gs_connect event_data = parse_connect_event(line);
                 // send CONNECT to gs_rank
-                printf("Coordinator sending connect to %d.\n", event_data.gs_rank);
                 MPI_Send(&event_data, 1, connect_datatype, event_data.gs_rank, CONNECT, MPI_COMM_WORLD);
             }
 
             if (is_connect_event != 0) {
-                // found different event, so we wait for n/2 ack
-                printf("did not find connect event. \n");
-                while (connect_ack_count < (n - 1) / 2) {
-                    printf("coordinator waiting...\n");
+                // found different event, so we wait for n/2 ack if needed
+                while (connect_ack_count < CONNECT_ACK_TOTAL(n)) {
                     // receive ACK events for CONNECT sends
                     MPI_Recv((void *) 0, 0, MPI_INT, MPI_ANY_SOURCE, ACK, MPI_COMM_WORLD, &status);
-
-                    if (status.MPI_TAG == ACK) {
-                        connect_ack_count++;
-                        printf("coordinator got ACK. Count is %d\n", connect_ack_count);
-                    }
+                    connect_ack_count++;
                 }
             } else {
                 continue;
             }
 
-            printf("coordinator exited wait.\n");
-
+            printf("parsed %s event\n", event);
             // parse other events after CONNECT events have finished
             if (strcmp(event, "ADD_STATUS") == 0) {
+                st_add_status event_data = parse_add_status_event(line);
+                MPI_Send(&event_data, 1, add_status_datatype, event_data.st_rank, ADD_STATUS, MPI_COMM_WORLD);
             } else if (strcmp(event, "ADD_ST_COORDINATES") == 0) {
+                st_add_coords event_data = parse_st_add_coords_event(line);
+                MPI_Send(&event_data, 1, st_add_coords_datatype, event_data.st_rank, ADD_ST_COORDINATES,
+                         MPI_COMM_WORLD);
             } else if (strcmp(event, "ADD_METRIC") == 0) {
                 // Handle other line types as needed
             } else if (strcmp(event, "ADD_GS_COORDINATES") == 0) {
@@ -125,6 +132,7 @@ int main(int argc, char *argv[]) {
                 // Handle other line types as needed
             } else if (strcmp(event, "START_LELECT_ST") == 0) {
             } else if (strcmp(event, "START_LELECT_GS") == 0) {
+            } else if (strcmp(event, "TERMINATE") == 0) {
             } else {
                 // or could ignore the event and continue
                 printf("Invalid event type %s found in file!\n", event);
@@ -145,6 +153,30 @@ int main(int argc, char *argv[]) {
 
     // if current process is a Satellite
     if (rank >= 0 && rank <= (n - 1) / 2 - 1) {
+        MPI_Status status_world;
+        int probe_world_flag;
+
+        do {
+            MPI_Iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &probe_world_flag, &status_world);
+
+            if (probe_world_flag) {
+                if (status_world.MPI_TAG == ADD_STATUS && status_world.MPI_SOURCE == n - 1) {
+                    st_add_status received_data;
+
+                    MPI_Recv(&received_data, 1, add_status_datatype, n - 1, ADD_STATUS, MPI_COMM_WORLD, &status_world);
+
+                    set_st_status(received_data.status);
+                    //printf("SATELLITE %d got status %.1f\n", rank, get_st_status());
+                } else if (status_world.MPI_TAG == ADD_ST_COORDINATES && status_world.MPI_SOURCE == n - 1) {
+                    st_add_coords received_data;
+                    MPI_Recv(&received_data, 1, st_add_coords_datatype, n - 1, ADD_ST_COORDINATES, MPI_COMM_WORLD,
+                             &status_world);
+                    set_st_coords(received_data.coords);
+                    //float *temp = get_st_coords();
+                    //printf("SATELLITE %d got COORDINATES %.4f , %.4f , %.4f\n", rank, temp[0], temp[1], temp[2]);
+                }
+            }
+        } while (status_world.MPI_TAG != TERMINATE);
     }
     // if it is a Ground Station
     if (rank >= (n - 1) / 2 && rank <= n - 1) {
@@ -207,6 +239,9 @@ int main(int argc, char *argv[]) {
     }
 
     MPI_Type_free(&connect_datatype);
+    MPI_Type_free(&add_status_datatype);
+    MPI_Type_free(&coords_datatype);
+    MPI_Type_free(&st_add_coords_datatype);
     MPI_Comm_free(&comm_group);
 
     MPI_Finalize();
