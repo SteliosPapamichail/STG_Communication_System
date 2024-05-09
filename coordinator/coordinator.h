@@ -11,6 +11,10 @@ gs_connect parse_connect_event(const char *line);
 
 st_add_status parse_add_status_event(const char *line);
 
-st_add_coords parse_st_add_coords_event(const char* line);
+st_add_coords parse_st_add_coords_event(const char *line);
+
+gs_add_coords parse_gs_add_coords_event(const char *line);
+
+st_add_metric parse_st_add_metric_event(const char *line);
 
 #endif //STG_COMMUNICATION_SYSTEM_COORDINATOR_H

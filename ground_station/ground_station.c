@@ -43,8 +43,17 @@
 //}
 
 int parent_gs;
-int* neighbor_gs = NULL;
+int *neighbor_gs = NULL;
 int num_of_neighbors = 0;
+float station_coordinates[3];
+
+void add_gs_coords(const float *coords) {
+    for (int i = 0; i < 3; i++) station_coordinates[i] = coords[i];
+}
+
+float *get_gs_coords() {
+    return station_coordinates;
+}
 
 void add_parent_gs(int parent_rank) {
     parent_gs = parent_rank;

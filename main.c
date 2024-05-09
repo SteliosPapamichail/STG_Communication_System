@@ -11,13 +11,15 @@
 #include <mpi/mpi.h>
 #include <string.h>
 
+#include "common/temp_metrics.h"
 #include "satellite/satellite.h"
 
 #define CONNECT_ACK_TOTAL(x) (((x - 1)/2) - 1)
+const int MAX_LINE_LENGTH = 256;
 
 int main(int argc, char *argv[]) {
     int rank, size, color;
-    MPI_Comm comm_world, comm_group;
+    MPI_Comm comm_group;
 
     MPI_Init(&argc, &argv);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
@@ -57,10 +59,14 @@ int main(int argc, char *argv[]) {
     MPI_Datatype add_status_datatype = add_status_event_datatype();
     MPI_Datatype coords_datatype = coordinates_datatype();
     MPI_Datatype st_add_coords_datatype = add_st_coords_event_datatype(coords_datatype);
+    MPI_Datatype gs_add_coords_datatype = add_gs_coords_event_datatype(coords_datatype);
+    MPI_Datatype st_add_metric_datatype = add_st_metric_event_datatype();
     MPI_Type_commit(&connect_datatype);
     MPI_Type_commit(&add_status_datatype);
     MPI_Type_commit(&coords_datatype);
     MPI_Type_commit(&st_add_coords_datatype);
+    MPI_Type_commit(&gs_add_coords_datatype);
+    MPI_Type_commit(&st_add_metric_datatype);
 
     // Identify group information within each group
     int group_rank, group_size;
@@ -109,7 +115,6 @@ int main(int argc, char *argv[]) {
                 continue;
             }
 
-            printf("parsed %s event\n", event);
             // parse other events after CONNECT events have finished
             if (strcmp(event, "ADD_STATUS") == 0) {
                 st_add_status event_data = parse_add_status_event(line);
@@ -119,9 +124,14 @@ int main(int argc, char *argv[]) {
                 MPI_Send(&event_data, 1, st_add_coords_datatype, event_data.st_rank, ADD_ST_COORDINATES,
                          MPI_COMM_WORLD);
             } else if (strcmp(event, "ADD_METRIC") == 0) {
-                // Handle other line types as needed
+                st_add_metric event_data = parse_st_add_metric_event(line);
+                printf("sending metric %s\n", event_data.timestamp);
+                MPI_Send(&event_data, 1, st_add_metric_datatype, event_data.st_rank, ADD_METRIC, MPI_COMM_WORLD);
+                printf("metrics sent\n");
             } else if (strcmp(event, "ADD_GS_COORDINATES") == 0) {
-                // Handle other line types as needed
+                gs_add_coords event_data = parse_gs_add_coords_event(line);
+                MPI_Send(&event_data, 1, gs_add_coords_datatype, event_data.gs_rank, ADD_GS_COORDINATES,
+                         MPI_COMM_WORLD);
             } else if (strcmp(event, "STATUS_CHECK") == 0) {
                 // Handle other line types as needed
             } else if (strcmp(event, "AVG_EARTH_TEMP") == 0) {
@@ -155,6 +165,9 @@ int main(int argc, char *argv[]) {
     if (rank >= 0 && rank <= (n - 1) / 2 - 1) {
         MPI_Status status_world;
         int probe_world_flag;
+        printf("creating list\n");
+        metrics_list *metrics = create_metrics_list();
+        printf("list created\n");
 
         do {
             MPI_Iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &probe_world_flag, &status_world);
@@ -174,9 +187,25 @@ int main(int argc, char *argv[]) {
                     set_st_coords(received_data.coords);
                     //float *temp = get_st_coords();
                     //printf("SATELLITE %d got COORDINATES %.4f , %.4f , %.4f\n", rank, temp[0], temp[1], temp[2]);
+                } else if (status_world.MPI_TAG == ADD_METRIC && status_world.MPI_SOURCE == n - 1) {
+                    st_add_metric received_data;
+
+                    printf("receiving data\n");
+                    MPI_Recv(&received_data, 1, st_add_metric_datatype, n - 1, ADD_METRIC, MPI_COMM_WORLD,
+                             &status_world);
+
+                    printf("got data in ST\n");
+
+                    add_metric(metrics, received_data);
+
+                    printf("STATION %d metrics\n\n", rank);
+                    print_metrics_list(metrics);
                 }
             }
         } while (status_world.MPI_TAG != TERMINATE);
+
+        // received TERMINATE
+        destroy_metrics_list(metrics);
     }
     // if it is a Ground Station
     if (rank >= (n - 1) / 2 && rank <= n - 1) {
@@ -189,50 +218,62 @@ int main(int argc, char *argv[]) {
         do {
             MPI_Iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &probe_world_flag, &status_world);
 
-            if (probe_world_flag && status_world.MPI_TAG == CONNECT && status_world.MPI_SOURCE == n - 1) {
-                // Handle CONNECT from coordinator
-                gs_connect received_data;
+            if (probe_world_flag) {
+                if (status_world.MPI_TAG == CONNECT && status_world.MPI_SOURCE == n - 1) {
+                    // Handle CONNECT from coordinator
+                    gs_connect received_data;
 
-                // receive connect event from coordinator
-                MPI_Recv(&received_data, 1, connect_datatype, n - 1, MPI_ANY_TAG, MPI_COMM_WORLD, &status_world);
+                    // receive connect event from coordinator
+                    MPI_Recv(&received_data, 1, connect_datatype, n - 1, MPI_ANY_TAG, MPI_COMM_WORLD, &status_world);
 
-                printf("GS %d got connect from coordinator\n", rank);
-                // add as parent with group rank, not global rank
-                add_parent_gs(received_data.neighbor_gs_rank % group_size);
-                // notify parent that we are its neighbor
-                MPI_Send(&received_data, 1, connect_datatype, received_data.neighbor_gs_rank % group_size, CONNECT,
-                         comm_group);
+                    printf("GS %d got connect from coordinator\n", rank);
+                    // add as parent with group rank, not global rank
+                    add_parent_gs(received_data.neighbor_gs_rank % group_size);
+                    // notify parent that we are its neighbor
+                    MPI_Send(&received_data, 1, connect_datatype, received_data.neighbor_gs_rank % group_size, CONNECT,
+                             comm_group);
 
-                // receive ack response from neighbor_gs_rank
-                printf("%d waiting to receive ACK from %d\n", rank, received_data.neighbor_gs_rank);
-                MPI_Recv((void *) 0, 0, MPI_INT, received_data.neighbor_gs_rank % group_size, ACK, comm_group,
-                         &status_world);
+                    // receive ack response from neighbor_gs_rank
+                    printf("%d waiting to receive ACK from %d\n", rank, received_data.neighbor_gs_rank);
+                    MPI_Recv((void *) 0, 0, MPI_INT, received_data.neighbor_gs_rank % group_size, ACK, comm_group,
+                             &status_world);
 
-                if (status_world.MPI_TAG == ACK) {
-                    printf("GS rank %d (local) got ACK from neighbor %d (local). Sending ACK TO COORDINATOR. \n",
-                           group_rank,
-                           status_world.MPI_SOURCE % group_size);
-                    // gs_rank got ACK from neighbor_gs_rank
-                    // send ACK back to the coordinator
-                    MPI_Send((void *) 0, 0, MPI_INT, n - 1, ACK, MPI_COMM_WORLD);
+                    if (status_world.MPI_TAG == ACK) {
+                        printf("GS rank %d (local) got ACK from neighbor %d (local). Sending ACK TO COORDINATOR. \n",
+                               group_rank,
+                               status_world.MPI_SOURCE % group_size);
+                        // gs_rank got ACK from neighbor_gs_rank
+                        // send ACK back to the coordinator
+                        MPI_Send((void *) 0, 0, MPI_INT, n - 1, ACK, MPI_COMM_WORLD);
+                    }
+                } else if (status_world.MPI_TAG == ADD_GS_COORDINATES && status_world.MPI_SOURCE == n - 1) {
+                    gs_add_coords received_data;
+                    MPI_Recv(&received_data, 1, gs_add_coords_datatype, n - 1, ADD_GS_COORDINATES, MPI_COMM_WORLD,
+                             &status_world);
+
+                    add_gs_coords(received_data.coords);
+                    //float *temp = get_gs_coords();
+                    //printf("STATION %d got COORDINATES %.6f , %.6f , %.6f\n", rank, temp[0], temp[1], temp[2]);
                 }
             }
 
             MPI_Iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, comm_group, &probe_gs_flag, &status_gs);
 
-            if (probe_gs_flag && status_gs.MPI_TAG == CONNECT) {
-                // got CONNECT from another GS
-                gs_connect received_data;
+            if (probe_gs_flag) {
+                if (status_gs.MPI_TAG == CONNECT) {
+                    // got CONNECT from another GS
+                    gs_connect received_data;
 
-                MPI_Recv(&received_data, 1, connect_datatype, MPI_ANY_SOURCE, CONNECT, comm_group, &status_gs);
+                    MPI_Recv(&received_data, 1, connect_datatype, MPI_ANY_SOURCE, CONNECT, comm_group, &status_gs);
 
-                if (status_gs.MPI_SOURCE == received_data.gs_rank % group_size) {
-                    // add as child since the event came from the gs_rank source
-                    printf("GS neighbor %d got CONNECT from gs_rank %d . Sending ACK to parent %d.\n",
-                           rank,
-                           received_data.gs_rank, status_gs.MPI_SOURCE + group_size);
-                    add_neighbor_gs(status_gs.MPI_SOURCE); // add neighbor with group rank
-                    MPI_Send((void *) 0, 0, MPI_INT, status_gs.MPI_SOURCE, ACK, comm_group);
+                    if (status_gs.MPI_SOURCE == received_data.gs_rank % group_size) {
+                        // add as child since the event came from the gs_rank source
+                        printf("GS neighbor %d got CONNECT from gs_rank %d . Sending ACK to parent %d.\n",
+                               rank,
+                               received_data.gs_rank, status_gs.MPI_SOURCE + group_size);
+                        add_neighbor_gs(status_gs.MPI_SOURCE); // add neighbor with group rank
+                        MPI_Send((void *) 0, 0, MPI_INT, status_gs.MPI_SOURCE, ACK, comm_group);
+                    }
                 }
             }
         } while (status_world.MPI_TAG != TERMINATE);
@@ -242,6 +283,8 @@ int main(int argc, char *argv[]) {
     MPI_Type_free(&add_status_datatype);
     MPI_Type_free(&coords_datatype);
     MPI_Type_free(&st_add_coords_datatype);
+    MPI_Type_free(&gs_add_coords_datatype);
+    MPI_Type_free(&st_add_metric_datatype);
     MPI_Comm_free(&comm_group);
 
     MPI_Finalize();

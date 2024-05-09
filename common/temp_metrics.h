@@ -4,15 +4,13 @@
 
 #ifndef STG_COMMUNICATION_SYSTEM_TEMP_METRICS_H
 #define STG_COMMUNICATION_SYSTEM_TEMP_METRICS_H
-#define _XOPEN_SOURCE
 
-#include <time.h>
 #include "event_payloads.h"
 
 typedef struct metric {
-    struct tm timestamp; // key
-    float temperature;  // value
-    struct metric* next;
+    char *timestamp; // key
+    float temperature; // value
+    struct metric *next;
 } temp_metric;
 
 // simple (naive) list of temperature metrics
@@ -26,7 +24,9 @@ typedef struct {
 
 metrics_list *create_metrics_list();
 
-int add_metric(metrics_list *list, st_add_metric *metric);
+int add_metric(const metrics_list *list, st_add_metric metric);
+
+void print_metrics_list(const metrics_list *list);
 
 void destroy_metrics_list(metrics_list *list);
 
