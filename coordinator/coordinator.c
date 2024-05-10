@@ -86,7 +86,7 @@ st_add_metric parse_st_add_metric_event(const char *line) {
 
     // Parse time
     token = strtok(NULL, " ");
-    size_t time_len = strlen(token);
+    const size_t time_len = strlen(token);
     if (time_len >= DATETIME_MAX_LENGTH) {
         // Handle error: Time string exceeds maximum length
         return data; // Returning empty or default data
@@ -96,7 +96,7 @@ st_add_metric parse_st_add_metric_event(const char *line) {
 
     // Parse date
     token = strtok(NULL, " ");
-    size_t date_len = strlen(token);
+    const size_t date_len = strlen(token);
     if (date_len + time_len + 1 > DATETIME_MAX_LENGTH) {
         // Handle error: Combined length of time and date exceeds maximum length
         return data; // Returning empty or default data

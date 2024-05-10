@@ -139,3 +139,46 @@ MPI_Datatype add_st_metric_event_datatype() {
     }
     return datatype;
 }
+
+MPI_Datatype st_lelect_probe_event_datatype() {
+    MPI_Datatype datatype;
+    int block_lengths[3] = {1, 1, 1};
+    // Calculate displacements for each member of the struct
+    MPI_Aint displacements[3];
+    MPI_Aint base_address;
+    MPI_Get_address(&((st_lelect_probe *) 0)->rank, &displacements[0]);
+    MPI_Get_address(&((st_lelect_probe *) 0)->phase, &displacements[1]);
+    MPI_Get_address(&((st_lelect_probe *) 0)->hop, &displacements[2]);
+    MPI_Get_address(NULL, &base_address);
+
+    // Define datatypes for each member of the struct
+    MPI_Datatype types[3] = {MPI_INT, MPI_INT, MPI_INT};
+
+    // Create the MPI datatype for the struct
+    const int errcode = MPI_Type_create_struct(3, block_lengths, displacements, types, &datatype);
+    if (errcode != MPI_SUCCESS) {
+        printf("Failed to create MPI_Datatype for custom event!");
+    }
+    return datatype;
+}
+
+MPI_Datatype st_lelect_reply_event_datatype() {
+    MPI_Datatype datatype;
+    int block_lengths[2] = {1, 1};
+    // Calculate displacements for each member of the struct
+    MPI_Aint displacements[2];
+    MPI_Aint base_address;
+    MPI_Get_address(&((st_lelect_reply *) 0)->rank, &displacements[0]);
+    MPI_Get_address(&((st_lelect_reply *) 0)->phase, &displacements[1]);
+    MPI_Get_address(NULL, &base_address);
+
+    // Define datatypes for each member of the struct
+    MPI_Datatype types[2] = {MPI_INT, MPI_INT};
+
+    // Create the MPI datatype for the struct
+    const int errcode = MPI_Type_create_struct(2, block_lengths, displacements, types, &datatype);
+    if (errcode != MPI_SUCCESS) {
+        printf("Failed to create MPI_Datatype for custom event!");
+    }
+    return datatype;
+}

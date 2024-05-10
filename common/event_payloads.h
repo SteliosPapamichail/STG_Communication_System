@@ -76,4 +76,15 @@ typedef struct e_avg_earth_temp_response {
     struct tm timestamp;
     double avg_temperature;
 } avg_earth_temp;
+
+typedef struct e_st_lelect_probe {
+    int rank;
+    int phase;
+    int hop;
+} st_lelect_probe;
+
+typedef struct e_st_lelect_reply {
+    int rank;
+    int phase;
+} st_lelect_reply;
 #endif //STG_COMMUNICATION_SYSTEM_EVENT_PAYLOADS_H

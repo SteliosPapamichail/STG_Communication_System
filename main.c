@@ -33,7 +33,7 @@ int main(int argc, char *argv[]) {
         MPI_Finalize();
         return 1;
     }
-    int n = atoi(argv[1]) + 1;
+    const int n = atoi(argv[1]) + 1;
     if (n <= 0 || size != n) {
         if (rank == 0) {
             printf("Invalid arguments. N must be positive and total processes (N+1) must match.\n");
@@ -61,12 +61,16 @@ int main(int argc, char *argv[]) {
     MPI_Datatype st_add_coords_datatype = add_st_coords_event_datatype(coords_datatype);
     MPI_Datatype gs_add_coords_datatype = add_gs_coords_event_datatype(coords_datatype);
     MPI_Datatype st_add_metric_datatype = add_st_metric_event_datatype();
+    MPI_Datatype st_lelect_probe_datatype = st_lelect_probe_event_datatype();
+    MPI_Datatype st_lelect_reply_datatype = st_lelect_reply_event_datatype();
     MPI_Type_commit(&connect_datatype);
     MPI_Type_commit(&add_status_datatype);
     MPI_Type_commit(&coords_datatype);
     MPI_Type_commit(&st_add_coords_datatype);
     MPI_Type_commit(&gs_add_coords_datatype);
     MPI_Type_commit(&st_add_metric_datatype);
+    MPI_Type_commit(&st_lelect_probe_datatype);
+    MPI_Type_commit(&st_lelect_reply_datatype);
 
     // Identify group information within each group
     int group_rank, group_size;
@@ -125,9 +129,7 @@ int main(int argc, char *argv[]) {
                          MPI_COMM_WORLD);
             } else if (strcmp(event, "ADD_METRIC") == 0) {
                 st_add_metric event_data = parse_st_add_metric_event(line);
-                printf("sending metric %s\n", event_data.timestamp);
                 MPI_Send(&event_data, 1, st_add_metric_datatype, event_data.st_rank, ADD_METRIC, MPI_COMM_WORLD);
-                printf("metrics sent\n");
             } else if (strcmp(event, "ADD_GS_COORDINATES") == 0) {
                 gs_add_coords event_data = parse_gs_add_coords_event(line);
                 MPI_Send(&event_data, 1, gs_add_coords_datatype, event_data.gs_rank, ADD_GS_COORDINATES,
@@ -141,6 +143,20 @@ int main(int argc, char *argv[]) {
             } else if (strcmp(event, "PRINT") == 0) {
                 // Handle other line types as needed
             } else if (strcmp(event, "START_LELECT_ST") == 0) {
+                // broadcast st leader election (only st processes will handle it)
+                //todo: replace with mpi_scatter probably to improve network utilization
+
+                for (int i = 0; i < (n - 1) / 2; i++) {
+                    printf("sending start elect to st\n");
+                    MPI_Send(NULL, 0, MPI_INT, i, START_LELECT_ST, MPI_COMM_WORLD);
+                }
+
+                int st_leader_rank;
+                // wait for leader id
+                MPI_Recv(&st_leader_rank, 1, MPI_INT, MPI_ANY_SOURCE, LELECT_ST_DONE, MPI_COMM_WORLD, &status);
+                // convert local comm rank to global rank for GS processes
+                st_leader_rank += (n - 1) / 2; // group size for ST
+                //todo forward to all GS processes with broadcast ig
             } else if (strcmp(event, "START_LELECT_GS") == 0) {
             } else if (strcmp(event, "TERMINATE") == 0) {
             } else {
@@ -165,9 +181,7 @@ int main(int argc, char *argv[]) {
     if (rank >= 0 && rank <= (n - 1) / 2 - 1) {
         MPI_Status status_world;
         int probe_world_flag;
-        printf("creating list\n");
         metrics_list *metrics = create_metrics_list();
-        printf("list created\n");
 
         do {
             MPI_Iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &probe_world_flag, &status_world);
@@ -189,17 +203,15 @@ int main(int argc, char *argv[]) {
                     //printf("SATELLITE %d got COORDINATES %.4f , %.4f , %.4f\n", rank, temp[0], temp[1], temp[2]);
                 } else if (status_world.MPI_TAG == ADD_METRIC && status_world.MPI_SOURCE == n - 1) {
                     st_add_metric received_data;
-
-                    printf("receiving data\n");
                     MPI_Recv(&received_data, 1, st_add_metric_datatype, n - 1, ADD_METRIC, MPI_COMM_WORLD,
                              &status_world);
-
-                    printf("got data in ST with timestamp %s\n", received_data.timestamp);
-
                     add_metric(metrics, received_data);
-
-                    printf("STATION %d metrics\n\n", rank);
-                    print_metrics_list(metrics);
+                } else if (status_world.MPI_TAG == START_LELECT_ST && status_world.MPI_SOURCE == n - 1) {
+                    // start election process
+                    printf("ST %d got start elect\n", rank);
+                    MPI_Barrier(comm_group);
+                    perform_st_leader_election(n - 1, group_rank, group_size, comm_group, st_lelect_probe_datatype,
+                                               st_lelect_reply_datatype);
                 }
             }
         } while (status_world.MPI_TAG != TERMINATE);
@@ -285,6 +297,8 @@ int main(int argc, char *argv[]) {
     MPI_Type_free(&st_add_coords_datatype);
     MPI_Type_free(&gs_add_coords_datatype);
     MPI_Type_free(&st_add_metric_datatype);
+    MPI_Type_free(&st_lelect_probe_datatype);
+    MPI_Type_free(&st_lelect_reply_datatype);
     MPI_Comm_free(&comm_group);
 
     MPI_Finalize();

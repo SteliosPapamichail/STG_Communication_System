@@ -36,11 +36,9 @@ int add_metric(metrics_list *list, const st_add_metric metric) {
     node->next = NULL;
 
     if (list->head == NULL) {
-        printf("List was empty. Adding node as head\n");
         list->head = node;
         list->tail = node;
     } else {
-        printf("List was not empty. Appending node to the end\n");
         list->tail->next = node;
         list->tail = node;
     }

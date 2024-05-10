@@ -20,4 +20,8 @@ MPI_Datatype coordinates_datatype();
 
 MPI_Datatype add_st_metric_event_datatype();
 
+MPI_Datatype st_lelect_probe_event_datatype();
+
+MPI_Datatype st_lelect_reply_event_datatype();
+
 #endif //STG_COMMUNICATION_SYSTEM_MPI_DATATYPES_H
