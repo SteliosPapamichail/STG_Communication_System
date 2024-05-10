@@ -8,7 +8,7 @@
 #include "event_payloads.h"
 
 typedef struct metric {
-    char *timestamp; // key
+    char timestamp[DATETIME_MAX_LENGTH]; // key
     float temperature; // value
     struct metric *next;
 } temp_metric;
@@ -24,7 +24,7 @@ typedef struct {
 
 metrics_list *create_metrics_list();
 
-int add_metric(const metrics_list *list, st_add_metric metric);
+int add_metric(metrics_list *list, st_add_metric metric);
 
 void print_metrics_list(const metrics_list *list);
 

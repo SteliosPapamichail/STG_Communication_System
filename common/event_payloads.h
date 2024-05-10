@@ -8,6 +8,8 @@
 #define _XOPEN_SOURCE
 #include <time.h>
 
+#include "constants.h"
+
 typedef struct e_gs_connection_info {
     int gs_rank;
     int neighbor_gs_rank;
@@ -19,7 +21,7 @@ typedef struct e_gs_connection_info {
 typedef struct e_add_metric_info {
     int st_rank;
     float temperature;
-    char* timestamp;
+    char timestamp[DATETIME_MAX_LENGTH];
 } st_add_metric;
 
 /**

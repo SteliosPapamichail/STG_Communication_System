@@ -86,17 +86,24 @@ st_add_metric parse_st_add_metric_event(const char *line) {
 
     // Parse time
     token = strtok(NULL, " ");
-    size_t len = strlen(token);
-    data.timestamp = malloc((len + 1) * sizeof(char));
-    strncpy(data.timestamp, token, len);
-    data.timestamp[len] = '\0';
-    printf("parsed time!\n");
+    size_t time_len = strlen(token);
+    if (time_len >= DATETIME_MAX_LENGTH) {
+        // Handle error: Time string exceeds maximum length
+        return data; // Returning empty or default data
+    }
+    strncpy(data.timestamp, token, time_len);
+    data.timestamp[time_len] = '\0'; // Null-terminate the time part
+
     // Parse date
     token = strtok(NULL, " ");
-    len = strlen(data.timestamp);
-    data.timestamp = realloc(data.timestamp, (len + strlen(token) + 2) * sizeof(char));
-    strncat(data.timestamp, " ", 1);
-    strncat(data.timestamp, token, strlen(token));
-    printf("pared date\n");
+    size_t date_len = strlen(token);
+    if (date_len + time_len + 1 > DATETIME_MAX_LENGTH) {
+        // Handle error: Combined length of time and date exceeds maximum length
+        return data; // Returning empty or default data
+    }
+    // Concatenate space and date to the timestamp buffer
+    strncat(data.timestamp, " ", 1); // Add space separator
+    strncat(data.timestamp + time_len + 1, token, date_len); // Concatenate date
+    data.timestamp[time_len + 1 + date_len] = '\0'; // Null-terminate the timestamp
     return data;
 }

@@ -4,70 +4,70 @@
 
 #include <malloc.h>
 #include "temp_metrics.h"
+
+#include <string.h>
+
 #include "event_payloads.h"
 
 metrics_list *create_metrics_list() {
     metrics_list *list = malloc(sizeof(metrics_list));
-    list->head = (temp_metric *) malloc(sizeof(temp_metric));
-    list->tail = (temp_metric *) malloc(sizeof(temp_metric));
-    list->head->next = list->tail;
-    list->tail->next = NULL;
+    if (list == NULL) {
+        return NULL; // Failed to allocate memory for the list
+    }
+    list->head = NULL; // Initialize head to NULL
+    list->tail = NULL; // Initialize tail to NULL
     return list;
 }
 
-int add_metric(const metrics_list *list, const st_add_metric metric) {
+int add_metric(metrics_list *list, const st_add_metric metric) {
+    if (list == NULL) {
+        printf("Error: List is NULL\n");
+        return 0;
+    }
+
     temp_metric *node = malloc(sizeof(temp_metric));
-    if (node == NULL) return 0;
+    if (node == NULL) {
+        printf("Error: Failed to allocate memory for node\n");
+        return 0;
+    }
 
-    node->timestamp = metric.timestamp;
+    strcpy(node->timestamp, metric.timestamp);
     node->temperature = metric.temperature;
+    node->next = NULL;
 
-    temp_metric *curr = list->head;
-
-    printf("add metric list called\n");
-
-    if (curr->next == list->tail) {
-        printf("metrics list was empty\n");
-        // list is empty
-        list->head->next = node;
-        node->next = list->tail;
-        return 1;
+    if (list->head == NULL) {
+        printf("List was empty. Adding node as head\n");
+        list->head = node;
+        list->tail = node;
+    } else {
+        printf("List was not empty. Appending node to the end\n");
+        list->tail->next = node;
+        list->tail = node;
     }
-
-    printf("metrics list NOT EMPTY\n");
-
-    while (curr->next != list->tail) {
-        curr = curr->next;
-    }
-
-    curr->next = node;
-    node->next = list->tail;
 
     return 1;
 }
 
 void print_metrics_list(const metrics_list *list) {
-    temp_metric *curr = list->head->next;
+    const temp_metric *curr = list->head;
 
     printf("-=-=- Metrics list -=-=-\n");
-    while (curr != list->tail) {
+    while (curr != NULL) {
         printf("%.1f %s\n", curr->temperature, curr->timestamp);
         curr = curr->next;
     }
 }
 
 void destroy_metrics_list(metrics_list *list) {
-    temp_metric *curr = list->head->next;
+    temp_metric *curr = list->head;
 
-    while (curr != list->tail) {
+    while (curr != NULL) {
         temp_metric *temp = curr;
         curr = curr->next;
-        // free memory for the dynamically allocated string
+        // Free memory for the dynamically allocated string
         free(temp->timestamp);
         free(temp);
     }
 
-    free(list->tail);
-    free(list->head);
     free(list);
 }

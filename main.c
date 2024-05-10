@@ -194,7 +194,7 @@ int main(int argc, char *argv[]) {
                     MPI_Recv(&received_data, 1, st_add_metric_datatype, n - 1, ADD_METRIC, MPI_COMM_WORLD,
                              &status_world);
 
-                    printf("got data in ST\n");
+                    printf("got data in ST with timestamp %s\n", received_data.timestamp);
 
                     add_metric(metrics, received_data);
 
