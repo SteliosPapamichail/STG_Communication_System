@@ -15,4 +15,8 @@ void add_gs_coords(const float *coords);
 
 float *get_gs_coords();
 
+void set_st_leader(int leader);
+
+int get_st_leader();
+
 #endif //STG_COMMUNICATION_SYSTEM_GROUND_STATION_H

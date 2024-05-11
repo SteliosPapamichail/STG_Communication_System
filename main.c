@@ -155,8 +155,11 @@ int main(int argc, char *argv[]) {
                 int st_leader_rank;
                 // wait for leader id
                 MPI_Recv(&st_leader_rank, 1, MPI_INT, MPI_ANY_SOURCE, LELECT_ST_DONE, MPI_COMM_WORLD, &status);
-                //todo forward to all GS processes with broadcast ig
-                printf("-------------------------------> coordinator got ST leader %d\n", st_leader_rank);
+                // forward to all GS processes with broadcast ig
+                for (int i = (n - 1) / 2; i < n - 1; i++) {
+                    printf("sending st leader rank to GS %d\n", i);
+                    MPI_Send(&st_leader_rank, 1, MPI_INT, i, ST_LEADER, MPI_COMM_WORLD);
+                }
             } else if (strcmp(event, "START_LELECT_GS") == 0) {
             } else if (strcmp(event, "TERMINATE") == 0) {
             } else {
@@ -207,13 +210,14 @@ int main(int argc, char *argv[]) {
                     MPI_Recv(&received_data, 1, st_add_metric_datatype, n - 1, ADD_METRIC, MPI_COMM_WORLD,
                              &status_world);
                     add_metric(metrics, received_data);
-                } else if (status_world.MPI_TAG == START_LELECT_ST && status_world.MPI_SOURCE == n - 1 && !leader_election_done) {
+                } else if (status_world.MPI_TAG == START_LELECT_ST && status_world.MPI_SOURCE == n - 1 && !
+                           leader_election_done) {
                     // start election process
-                    printf("ST %d got start elect with tag %d and flag %d\n", rank, status_world.MPI_TAG, probe_world_flag);
+                    printf("ST %d got start elect with tag %d and flag %d\n", rank, status_world.MPI_TAG,
+                           probe_world_flag);
                     MPI_Barrier(comm_group);
                     perform_st_leader_election(n - 1, group_rank, group_size, comm_group, st_lelect_probe_datatype,
                                                st_lelect_reply_datatype);
-                    MPI_Barrier(comm_group);
                     leader_election_done = 1;
                 }
             }
@@ -269,6 +273,11 @@ int main(int argc, char *argv[]) {
                     add_gs_coords(received_data.coords);
                     //float *temp = get_gs_coords();
                     //printf("STATION %d got COORDINATES %.6f , %.6f , %.6f\n", rank, temp[0], temp[1], temp[2]);
+                } else if (status_world.MPI_TAG == ST_LEADER && status_world.MPI_SOURCE == n - 1) {
+                    int st_leader_rank;
+                    MPI_Recv(&st_leader_rank, 1, MPI_INT, n - 1, ST_LEADER, MPI_COMM_WORLD, &status_world);
+                    printf("GS %d storing leader %d\n", rank, st_leader_rank);
+                    set_st_leader(st_leader_rank);
                 }
             }
 
