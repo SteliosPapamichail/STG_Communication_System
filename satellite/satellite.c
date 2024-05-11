@@ -42,11 +42,13 @@ float *get_st_coords() {
 void perform_st_leader_election(int coordinator_rank, int rank, const int size, MPI_Comm group_comm,
                                 MPI_Datatype probe_datatype,
                                 MPI_Datatype reply_datatype) {
-    int num_replies = 0;
     MPI_Status status;
+    int num_replies = 0;
     int flag;
     int left_neighbor = get_left_ring_neighbor(rank, size);
     int right_neighbor = get_right_ring_neighbor(rank, size);
+    int leader_rank;
+    int leader_declared = 0;
 
     st_lelect_probe payload;
     payload.rank = rank;
@@ -67,10 +69,12 @@ void perform_st_leader_election(int coordinator_rank, int rank, const int size, 
 
                 printf("%d got PROBE FROM LEFT NEIGHBOR %d\n", rank, left_neighbor);
 
-                if (received_data.rank == rank) {
+                if (received_data.rank == rank && !leader_declared) {
                     // end done to coordinator with our rank
                     printf("%d is ST LEADER\n", rank);
-                    MPI_Send(&rank, 1, MPI_INT, coordinator_rank, LELECT_ST_DONE, MPI_COMM_WORLD);
+                    // send TERMINATE around the ring
+                    leader_declared = 1;
+                    MPI_Send(&rank, 1, MPI_INT, left_neighbor, LELECT_TERMINATE, group_comm);
                 } else if (received_data.rank > rank && received_data.hop < pow(2, received_data.phase)) {
                     received_data.hop += 1;
                     printf("%d from left neighbor %d sending probe to right neighbor %d\n", rank, left_neighbor,
@@ -89,10 +93,11 @@ void perform_st_leader_election(int coordinator_rank, int rank, const int size, 
 
                 printf("%d got PROBE FROM LEFT NEIGHBOR %d\n", rank, left_neighbor);
 
-                if (received_data.rank == rank) {
+                if (received_data.rank == rank && !leader_declared) {
                     // end done to coordinator with our rank
                     printf("%d is ST LEADER\n", rank);
-                    MPI_Send(&rank, 1, MPI_INT, coordinator_rank, LELECT_ST_DONE, MPI_COMM_WORLD);
+                    leader_declared = 1;
+                    MPI_Send(&rank, 1, MPI_INT, left_neighbor, LELECT_TERMINATE, group_comm);
                 } else if (received_data.rank > rank && received_data.hop < pow(2, received_data.phase)) {
                     printf("%d from right neighbor %d sending probe to left neighbor %d\n", rank, right_neighbor,
                            left_neighbor);
@@ -159,7 +164,20 @@ void perform_st_leader_election(int coordinator_rank, int rank, const int size, 
                         num_replies++;
                     }
                 }
+            } else if (status.MPI_TAG == LELECT_TERMINATE && status.MPI_SOURCE == right_neighbor) {
+                MPI_Recv(&leader_rank, 1, MPI_INT, right_neighbor, LELECT_TERMINATE, group_comm, &status);
+                break;
             }
         }
-    } while (status.MPI_TAG != LELECT_TERMINATE);
+    } while (1);
+
+    if (leader_rank == rank) {
+        // leader payload came full-circle/ring, we can notify coordinator
+        printf("%d sending done\n", rank);
+        MPI_Send(&leader_rank, 1, MPI_INT, coordinator_rank, LELECT_ST_DONE, MPI_COMM_WORLD);
+    } else {
+        // else propagate leader rank to neighbor in ring
+        printf("%d sending terminate to %d. SOURCE WAS %d\n", rank, left_neighbor, leader_rank);
+        MPI_Send(&leader_rank, 1, MPI_INT, left_neighbor, LELECT_TERMINATE, group_comm);
+    }
 }

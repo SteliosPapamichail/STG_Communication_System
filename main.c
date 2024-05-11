@@ -119,6 +119,8 @@ int main(int argc, char *argv[]) {
                 continue;
             }
 
+            printf("parsing %s\n", event);
+
             // parse other events after CONNECT events have finished
             if (strcmp(event, "ADD_STATUS") == 0) {
                 st_add_status event_data = parse_add_status_event(line);
@@ -143,20 +145,18 @@ int main(int argc, char *argv[]) {
             } else if (strcmp(event, "PRINT") == 0) {
                 // Handle other line types as needed
             } else if (strcmp(event, "START_LELECT_ST") == 0) {
-                // broadcast st leader election (only st processes will handle it)
                 //todo: replace with mpi_scatter probably to improve network utilization
-
+                printf("-=-=-=-=-=-=- STARTING ELECTION PROCESS -=-=-=-=-=-=-=-\n");
                 for (int i = 0; i < (n - 1) / 2; i++) {
-                    printf("sending start elect to st\n");
+                    printf("sending start elect to st %d\n", i);
                     MPI_Send(NULL, 0, MPI_INT, i, START_LELECT_ST, MPI_COMM_WORLD);
                 }
 
                 int st_leader_rank;
                 // wait for leader id
                 MPI_Recv(&st_leader_rank, 1, MPI_INT, MPI_ANY_SOURCE, LELECT_ST_DONE, MPI_COMM_WORLD, &status);
-                // convert local comm rank to global rank for GS processes
-                st_leader_rank += (n - 1) / 2; // group size for ST
                 //todo forward to all GS processes with broadcast ig
+                printf("-------------------------------> coordinator got ST leader %d\n", st_leader_rank);
             } else if (strcmp(event, "START_LELECT_GS") == 0) {
             } else if (strcmp(event, "TERMINATE") == 0) {
             } else {
@@ -181,6 +181,7 @@ int main(int argc, char *argv[]) {
     if (rank >= 0 && rank <= (n - 1) / 2 - 1) {
         MPI_Status status_world;
         int probe_world_flag;
+        int leader_election_done = 0;
         metrics_list *metrics = create_metrics_list();
 
         do {
@@ -206,12 +207,14 @@ int main(int argc, char *argv[]) {
                     MPI_Recv(&received_data, 1, st_add_metric_datatype, n - 1, ADD_METRIC, MPI_COMM_WORLD,
                              &status_world);
                     add_metric(metrics, received_data);
-                } else if (status_world.MPI_TAG == START_LELECT_ST && status_world.MPI_SOURCE == n - 1) {
+                } else if (status_world.MPI_TAG == START_LELECT_ST && status_world.MPI_SOURCE == n - 1 && !leader_election_done) {
                     // start election process
-                    printf("ST %d got start elect\n", rank);
+                    printf("ST %d got start elect with tag %d and flag %d\n", rank, status_world.MPI_TAG, probe_world_flag);
                     MPI_Barrier(comm_group);
                     perform_st_leader_election(n - 1, group_rank, group_size, comm_group, st_lelect_probe_datatype,
                                                st_lelect_reply_datatype);
+                    MPI_Barrier(comm_group);
+                    leader_election_done = 1;
                 }
             }
         } while (status_world.MPI_TAG != TERMINATE);
