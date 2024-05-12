@@ -20,4 +20,5 @@ add_executable(STG_Communication_System
         common/mpi_datatypes.c
         common/mpi_datatypes.h
         coordinator/coordinator.c
-        coordinator/coordinator.h)
+        coordinator/coordinator.h
+        common/utils.h)

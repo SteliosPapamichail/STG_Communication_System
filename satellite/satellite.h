@@ -15,6 +15,10 @@ void set_st_coords(const float *coords);
 
 float *get_st_coords();
 
+int get_gs_leader_st();
+
+void set_gs_leader_st(int gs_rank);
+
 int get_left_ring_neighbor(int rank, int total_nodes);
 
 int get_right_ring_neighbor(int rank, int total_nodes);

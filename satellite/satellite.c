@@ -12,6 +12,15 @@
 
 float satellite_status;
 float satellite_coordinates[3];
+int gs_leader_rank;
+
+int get_gs_leader_st() {
+    return gs_leader_rank;
+}
+
+void set_gs_leader_st(int gs_rank) {
+    gs_leader_rank = gs_rank;
+}
 
 // right neighbor according to the leader election
 int get_right_ring_neighbor(const int rank, const int total_nodes) {
@@ -67,21 +76,20 @@ void perform_st_leader_election(int coordinator_rank, int rank, const int size, 
                 st_lelect_probe received_data;
                 MPI_Recv(&received_data, 1, probe_datatype, left_neighbor, LELECT_PROBE, group_comm, &status);
 
-                printf("%d got PROBE FROM LEFT NEIGHBOR %d\n", rank, left_neighbor);
+                //printf("%d got PROBE FROM LEFT NEIGHBOR %d\n", rank, left_neighbor);
 
                 if (received_data.rank == rank && !leader_declared) {
                     // end done to coordinator with our rank
-                    printf("%d is ST LEADER\n", rank);
+                    //printf("%d is ST LEADER\n", rank);
                     // send TERMINATE around the ring
                     leader_declared = 1;
                     MPI_Send(&rank, 1, MPI_INT, left_neighbor, LELECT_TERMINATE, group_comm);
                 } else if (received_data.rank > rank && received_data.hop < pow(2, received_data.phase)) {
                     received_data.hop += 1;
-                    printf("%d from left neighbor %d sending probe to right neighbor %d\n", rank, left_neighbor,
-                           right_neighbor);
+                    //printf("%d from left neighbor %d sending probe to right neighbor %d\n", rank, left_neighbor, right_neighbor);
                     MPI_Send(&received_data, 1, probe_datatype, right_neighbor, LELECT_PROBE, group_comm);
                 } else if (received_data.rank > rank && received_data.hop >= pow(2, received_data.phase)) {
-                    printf("%d from left neighbor %d sending reply to left neighbor\n", rank, left_neighbor);
+                    //printf("%d from left neighbor %d sending reply to left neighbor\n", rank, left_neighbor);
                     st_lelect_reply lelect_reply;
                     lelect_reply.rank = received_data.rank;
                     lelect_reply.phase = received_data.phase;
@@ -91,20 +99,19 @@ void perform_st_leader_election(int coordinator_rank, int rank, const int size, 
                 st_lelect_probe received_data;
                 MPI_Recv(&received_data, 1, probe_datatype, right_neighbor, LELECT_PROBE, group_comm, &status);
 
-                printf("%d got PROBE FROM LEFT NEIGHBOR %d\n", rank, left_neighbor);
+                //printf("%d got PROBE FROM LEFT NEIGHBOR %d\n", rank, left_neighbor);
 
                 if (received_data.rank == rank && !leader_declared) {
                     // end done to coordinator with our rank
-                    printf("%d is ST LEADER\n", rank);
+                    //printf("%d is ST LEADER\n", rank);
                     leader_declared = 1;
                     MPI_Send(&rank, 1, MPI_INT, left_neighbor, LELECT_TERMINATE, group_comm);
                 } else if (received_data.rank > rank && received_data.hop < pow(2, received_data.phase)) {
-                    printf("%d from right neighbor %d sending probe to left neighbor %d\n", rank, right_neighbor,
-                           left_neighbor);
+                    //printf("%d from right neighbor %d sending probe to left neighbor %d\n", rank, right_neighbor,left_neighbor);
                     received_data.hop += 1;
                     MPI_Send(&received_data, 1, probe_datatype, left_neighbor, LELECT_PROBE, group_comm);
                 } else if (received_data.rank > rank && received_data.hop >= pow(2, received_data.phase)) {
-                    printf("%d from right neighbor %d sending reply to right neighbor\n", rank, right_neighbor);
+                    //printf("%d from right neighbor %d sending reply to right neighbor\n", rank, right_neighbor);
                     st_lelect_reply lelect_reply;
                     lelect_reply.rank = received_data.rank;
                     lelect_reply.phase = received_data.phase;
@@ -114,17 +121,17 @@ void perform_st_leader_election(int coordinator_rank, int rank, const int size, 
                 st_lelect_reply reply;
                 MPI_Recv(&reply, 1, reply_datatype, left_neighbor, LELECT_REPLY, group_comm, &status);
 
-                printf("%d got REPLY from left neighbor %d\n", rank, left_neighbor);
+                //printf("%d got REPLY from left neighbor %d\n", rank, left_neighbor);
 
                 if (reply.rank != rank) {
                     // forward reply
-                    printf("forward reply to right neighbor %d\n", right_neighbor);
+                    //printf("forward reply to right neighbor %d\n", right_neighbor);
                     MPI_Send(&reply, 1, reply_datatype, right_neighbor, LELECT_REPLY, group_comm);
                 } else {
                     // phase k winner
                     if (num_replies > 0) {
                         // got second reply so we win this phase
-                        printf("%d is phase %d winner\n", rank, reply.phase);
+                        //printf("%d is phase %d winner\n", rank, reply.phase);
                         st_lelect_probe probe;
                         probe.rank = rank;
                         probe.phase = reply.phase + 1;
@@ -133,7 +140,7 @@ void perform_st_leader_election(int coordinator_rank, int rank, const int size, 
                         MPI_Send(&probe, 1, probe_datatype, right_neighbor, LELECT_PROBE, group_comm);
                         num_replies = 0; // reset for next phase
                     } else {
-                        printf("got one reply\n");
+                        //printf("got one reply\n");
                         num_replies++;
                     }
                 }
@@ -141,16 +148,16 @@ void perform_st_leader_election(int coordinator_rank, int rank, const int size, 
                 st_lelect_reply reply;
                 MPI_Recv(&reply, 1, reply_datatype, right_neighbor, LELECT_REPLY, group_comm, &status);
 
-                printf("%d got REPLY from right neighbor %d\n", rank, right_neighbor);
+                //printf("%d got REPLY from right neighbor %d\n", rank, right_neighbor);
 
                 if (reply.rank != rank) {
                     // forward reply
-                    printf("forward reply to left neighbor %d\n", left_neighbor);
+                    //printf("forward reply to left neighbor %d\n", left_neighbor);
                     MPI_Send(&reply, 1, reply_datatype, left_neighbor, LELECT_REPLY, group_comm);
                 } else {
                     if (num_replies == 1) {
                         // got second reply so we win this phase
-                        printf("%d is phase %d winner\n", rank, reply.phase);
+                        //printf("%d is phase %d winner\n", rank, reply.phase);
                         // phase k winner
                         st_lelect_probe probe;
                         probe.rank = rank;
@@ -160,7 +167,7 @@ void perform_st_leader_election(int coordinator_rank, int rank, const int size, 
                         MPI_Send(&probe, 1, probe_datatype, right_neighbor, LELECT_PROBE, group_comm);
                         num_replies = 0; // reset for next phase
                     } else {
-                        printf("got one reply\n");
+                        //printf("got one reply\n");
                         num_replies++;
                     }
                 }
@@ -173,11 +180,11 @@ void perform_st_leader_election(int coordinator_rank, int rank, const int size, 
 
     if (leader_rank == rank) {
         // leader payload came full-circle/ring, we can notify coordinator
-        printf("%d sending done\n", rank);
+        //printf("%d sending done\n", rank);
         MPI_Send(&leader_rank, 1, MPI_INT, coordinator_rank, LELECT_ST_DONE, MPI_COMM_WORLD);
     } else {
         // else propagate leader rank to neighbor in ring
-        printf("%d sending terminate to %d. SOURCE WAS %d\n", rank, left_neighbor, leader_rank);
+        //printf("%d sending terminate to %d. SOURCE WAS %d\n", rank, left_neighbor, leader_rank);
         MPI_Send(&leader_rank, 1, MPI_INT, left_neighbor, LELECT_TERMINATE, group_comm);
     }
 }

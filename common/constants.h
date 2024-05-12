@@ -37,6 +37,7 @@ enum event_t {
     LELECT_GS_DONE = 18,
     LELECT_TERMINATE = 19,
     ST_LEADER = 20,
-    GS_LEADER = 21
+    GS_LEADER = 21,
+    ELECT = 22
 };
 #endif //STG_COMMUNICATION_SYSTEM_CONSTANTS_H

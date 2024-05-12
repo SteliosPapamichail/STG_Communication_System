@@ -7,16 +7,24 @@
 
 #include <mpi/mpi.h>
 
+int get_status_checks_count();
+
+void increment_status_checks_count();
+
 void add_parent_gs(int parent_rank);
 
 void add_neighbor_gs(int child_rank);
 
 void add_gs_coords(const float *coords);
 
+int get_neighbor_count();
+
 float *get_gs_coords();
 
-void set_st_leader(int leader);
+void set_st_leader_gs(int leader);
 
-int get_st_leader();
+int get_st_leader_gs();
+
+void perform_gs_leader_election(int coordinator_rank, int rank, int group_size, MPI_Comm comm);
 
 #endif //STG_COMMUNICATION_SYSTEM_GROUND_STATION_H

@@ -7,6 +7,14 @@
 
 #include "../common/event_payloads.h"
 
+void set_st_leader_coordinator(int rank);
+
+int get_st_leaader_coordinator();
+
+void set_gs_leader_coordinator(int rank);
+
+int get_gs_leader_coordinator();
+
 gs_connect parse_connect_event(const char *line);
 
 st_add_status parse_add_status_event(const char *line);

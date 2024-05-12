@@ -146,42 +146,57 @@ int main(int argc, char *argv[]) {
                 // Handle other line types as needed
             } else if (strcmp(event, "START_LELECT_ST") == 0) {
                 //todo: replace with mpi_scatter probably to improve network utilization
-                printf("-=-=-=-=-=-=- STARTING ELECTION PROCESS -=-=-=-=-=-=-=-\n");
                 for (int i = 0; i < (n - 1) / 2; i++) {
-                    printf("sending start elect to st %d\n", i);
-                    MPI_Send(NULL, 0, MPI_INT, i, START_LELECT_ST, MPI_COMM_WORLD);
+                    //printf("sending start elect to st %d\n", i);
+                    MPI_Send((void *) 0, 0, MPI_INT, i, START_LELECT_ST, MPI_COMM_WORLD);
                 }
 
                 int st_leader_rank;
                 // wait for leader id
                 MPI_Recv(&st_leader_rank, 1, MPI_INT, MPI_ANY_SOURCE, LELECT_ST_DONE, MPI_COMM_WORLD, &status);
+                set_st_leader_coordinator(st_leader_rank);
                 // forward to all GS processes with broadcast ig
                 for (int i = (n - 1) / 2; i < n - 1; i++) {
-                    printf("sending st leader rank to GS %d\n", i);
+                    //printf("sending st leader rank to GS %d\n", i);
                     MPI_Send(&st_leader_rank, 1, MPI_INT, i, ST_LEADER, MPI_COMM_WORLD);
                 }
             } else if (strcmp(event, "START_LELECT_GS") == 0) {
-            } else if (strcmp(event, "TERMINATE") == 0) {
+                for (int i = (n - 1) / 2; i < n - 1; i++) {
+                    //printf("sending start gs elect to GS %d\n", i);
+                    MPI_Send((void *) 0, 0, MPI_INT, i, START_LELECT_GS, MPI_COMM_WORLD);
+                }
+
+                int gs_leader_rank;
+                // wait for leader id
+                MPI_Recv(&gs_leader_rank, 1, MPI_INT, MPI_ANY_SOURCE, LELECT_GS_DONE, MPI_COMM_WORLD, &status);
+                // account for GS communicator size
+                gs_leader_rank += (n - 1) / 2;
+                set_gs_leader_coordinator(gs_leader_rank);
+                printf("---> coordinator got %d gs leader\n", gs_leader_rank);
+                // forward gs rank to all ST processes
+                for (int i = 0; i < (n - 1) / 2; i++) {
+                    printf("sending gs leader (%d) to ST %d\n", gs_leader_rank, i);
+                    MPI_Send(&gs_leader_rank, 1, MPI_INT, i, GS_LEADER, MPI_COMM_WORLD);
+                }
             } else {
+                // if event is TERMINATE or some other unsupported event
                 // or could ignore the event and continue
-                printf("Invalid event type %s found in file!\n", event);
-                MPI_Finalize();
-                return 1;
+                printf("broadcasting TERMINATE\n");
+                MPI_Bcast((void *) 0, 0, MPI_INT, TERMINATE, MPI_COMM_WORLD);
+                if (strcmp(event, "TERMINATE") != 0) {
+                    printf("Invalid event type %s found in file!\n", event);
+                }
+                break;
             }
         }
 
-        // if reached, means fgets() reached EOF and got NULL
         if (ferror(file)) {
             printf("Error reading file.\n");
             MPI_Finalize();
-            return 1;
-        } else {
-            //TODO:sp implement TERMINATE messaging
+            return -1;
         }
-    }
-
-    // if current process is a Satellite
-    if (rank >= 0 && rank <= (n - 1) / 2 - 1) {
+    } else if (rank >= 0 && rank < (n - 1) / 2) {
+        // if current process is a Satellite
         MPI_Status status_world;
         int probe_world_flag;
         int leader_election_done = 0;
@@ -213,26 +228,29 @@ int main(int argc, char *argv[]) {
                 } else if (status_world.MPI_TAG == START_LELECT_ST && status_world.MPI_SOURCE == n - 1 && !
                            leader_election_done) {
                     // start election process
-                    printf("ST %d got start elect with tag %d and flag %d\n", rank, status_world.MPI_TAG,
-                           probe_world_flag);
+                    //printf("ST %d got start elect with tag %d and flag %d\n", rank, status_world.MPI_TAG, probe_world_flag);
                     MPI_Barrier(comm_group);
                     perform_st_leader_election(n - 1, group_rank, group_size, comm_group, st_lelect_probe_datatype,
                                                st_lelect_reply_datatype);
                     leader_election_done = 1;
+                } else if (status_world.MPI_TAG == GS_LEADER && status_world.MPI_SOURCE == n - 1) {
+                    int gs_leader_rank;
+                    printf("waiting to receive gs\n");
+                    MPI_Recv(&gs_leader_rank, 1, MPI_INT, n - 1, GS_LEADER, MPI_COMM_WORLD, &status_world);
+                    printf("ST %d got gs leader %d\n", rank, gs_leader_rank);
+                    set_gs_leader_st(gs_leader_rank);
                 }
             }
         } while (status_world.MPI_TAG != TERMINATE);
 
         // received TERMINATE
+        printf("ST %d got terminate.\n", rank);
         destroy_metrics_list(metrics);
-    }
-    // if it is a Ground Station
-    if (rank >= (n - 1) / 2 && rank <= n - 1) {
-        // connect message
-        // avg temp message
-        // status check message
+    } else if (rank >= (n - 1) / 2 && rank <= n - 1) {
+        // if it is a Ground Station
         MPI_Status status_world, status_gs;
         int probe_world_flag, probe_gs_flag;
+        int leader_election_done = 0;
 
         do {
             MPI_Iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &probe_world_flag, &status_world);
@@ -248,23 +266,11 @@ int main(int argc, char *argv[]) {
                     printf("GS %d got connect from coordinator\n", rank);
                     // add as parent with group rank, not global rank
                     add_parent_gs(received_data.neighbor_gs_rank % group_size);
+                    // add as neighbor as well
+                    add_neighbor_gs(received_data.neighbor_gs_rank % group_size);
                     // notify parent that we are its neighbor
                     MPI_Send(&received_data, 1, connect_datatype, received_data.neighbor_gs_rank % group_size, CONNECT,
                              comm_group);
-
-                    // receive ack response from neighbor_gs_rank
-                    printf("%d waiting to receive ACK from %d\n", rank, received_data.neighbor_gs_rank);
-                    MPI_Recv((void *) 0, 0, MPI_INT, received_data.neighbor_gs_rank % group_size, ACK, comm_group,
-                             &status_world);
-
-                    if (status_world.MPI_TAG == ACK) {
-                        printf("GS rank %d (local) got ACK from neighbor %d (local). Sending ACK TO COORDINATOR. \n",
-                               group_rank,
-                               status_world.MPI_SOURCE % group_size);
-                        // gs_rank got ACK from neighbor_gs_rank
-                        // send ACK back to the coordinator
-                        MPI_Send((void *) 0, 0, MPI_INT, n - 1, ACK, MPI_COMM_WORLD);
-                    }
                 } else if (status_world.MPI_TAG == ADD_GS_COORDINATES && status_world.MPI_SOURCE == n - 1) {
                     gs_add_coords received_data;
                     MPI_Recv(&received_data, 1, gs_add_coords_datatype, n - 1, ADD_GS_COORDINATES, MPI_COMM_WORLD,
@@ -277,7 +283,12 @@ int main(int argc, char *argv[]) {
                     int st_leader_rank;
                     MPI_Recv(&st_leader_rank, 1, MPI_INT, n - 1, ST_LEADER, MPI_COMM_WORLD, &status_world);
                     printf("GS %d storing leader %d\n", rank, st_leader_rank);
-                    set_st_leader(st_leader_rank);
+                    set_st_leader_gs(st_leader_rank);
+                } else if (!leader_election_done && status_world.MPI_TAG == START_LELECT_GS && status_world.MPI_SOURCE
+                           == n - 1) {
+                    MPI_Barrier(comm_group);
+                    perform_gs_leader_election(n - 1, group_rank, group_size, comm_group);
+                    leader_election_done = 1;
                 }
             }
 
@@ -296,11 +307,25 @@ int main(int argc, char *argv[]) {
                                rank,
                                received_data.gs_rank, status_gs.MPI_SOURCE + group_size);
                         add_neighbor_gs(status_gs.MPI_SOURCE); // add neighbor with group rank
+                        printf("---> GS %d has %d neighbors\n", rank, get_neighbor_count());
                         MPI_Send((void *) 0, 0, MPI_INT, status_gs.MPI_SOURCE, ACK, comm_group);
                     }
+                } else if (status_gs.MPI_TAG == ACK) {
+                    // receive ack response from neighbor_gs_rank
+                    MPI_Recv((void *) 0, 0, MPI_INT, MPI_ANY_SOURCE, ACK, comm_group,
+                             &status_gs);
+                    printf("GS rank %d (local) got ACK from neighbor %d (local). Sending ACK TO COORDINATOR. \n",
+                           group_rank,
+                           status_gs.MPI_SOURCE % group_size);
+                    // gs_rank got ACK from neighbor_gs_rank
+                    // send ACK back to the coordinator
+                    MPI_Send((void *) 0, 0, MPI_INT, n - 1, ACK, MPI_COMM_WORLD);
                 }
             }
         } while (status_world.MPI_TAG != TERMINATE);
+
+        printf("GS %d got terminate.\n", rank);
+        //destroy_metrics_list(metrics_list);
     }
 
     MPI_Type_free(&connect_datatype);

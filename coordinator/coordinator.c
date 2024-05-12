@@ -12,6 +12,25 @@
 
 extern int MAX_LINE_LENGTH;
 
+int st_leader;
+int gs_leader;
+
+void set_st_leader_coordinator(const int rank) {
+    st_leader = rank;
+}
+
+int get_st_leaader_coordinator() {
+    return st_leader;
+}
+
+void set_gs_leader_coordinator(const int rank) {
+    gs_leader = rank;
+}
+
+int get_gs_leader_coordinator() {
+    return gs_leader;
+}
+
 gs_connect parse_connect_event(const char *line) {
     gs_connect data;
     const char *token = strtok((char *) line, " "); // Cast line to avoid warnings
