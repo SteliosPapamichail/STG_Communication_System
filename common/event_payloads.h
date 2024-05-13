@@ -63,7 +63,7 @@ typedef struct e_status_check {
  * event being emitted back, containing the result.
  */
 typedef struct e_avg_earth_temp_request {
-    struct tm timestamp;
+    char timestamp[DATETIME_MAX_LENGTH];
 } avg_earth_temp_request;
 
 /**
@@ -73,8 +73,10 @@ typedef struct e_avg_earth_temp_request {
  * event.
  */
 typedef struct e_avg_earth_temp_response {
-    struct tm timestamp;
+    char timestamp[DATETIME_MAX_LENGTH];
     double avg_temperature;
+    int st_leader;
+    int num_of_actual_measurements;
 } avg_earth_temp;
 
 typedef struct e_st_lelect_probe {
@@ -87,4 +89,9 @@ typedef struct e_st_lelect_reply {
     int rank;
     int phase;
 } st_lelect_reply;
+
+struct stat_check_gs {
+    int gs_rank;
+    double distance;
+};
 #endif //STG_COMMUNICATION_SYSTEM_EVENT_PAYLOADS_H

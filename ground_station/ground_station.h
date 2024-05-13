@@ -7,6 +7,10 @@
 
 #include <mpi/mpi.h>
 
+#include "../common/event_payloads.h"
+
+void free_neighbor_gs();
+
 int get_status_checks_count();
 
 void increment_status_checks_count();
@@ -25,6 +29,8 @@ void set_st_leader_gs(int leader);
 
 int get_st_leader_gs();
 
-void perform_gs_leader_election(int coordinator_rank, int rank, int group_size, MPI_Comm comm);
+void perform_gs_leader_election(int coordinator_rank, int rank, MPI_Comm comm);
+
+int get_min_dist_gs(int rank, status_check data, MPI_Comm group_comm, MPI_Datatype stat_check_datatype);
 
 #endif //STG_COMMUNICATION_SYSTEM_GROUND_STATION_H

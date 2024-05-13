@@ -4,6 +4,7 @@ project(STG_Communication_System C)
 set(CMAKE_C_STANDARD 11)
 
 include_directories(.)
+include_directories(mpi)
 
 add_executable(STG_Communication_System
         main.c

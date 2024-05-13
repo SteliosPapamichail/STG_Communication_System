@@ -26,6 +26,10 @@ metrics_list *create_metrics_list();
 
 int add_metric(metrics_list *list, st_add_metric metric);
 
+int add_metric_gs(metrics_list *list, const char *timestamp, const double temperature);
+
+float get_temp_for_timestamp(const metrics_list *list, const char *timestamp);
+
 void print_metrics_list(const metrics_list *list);
 
 void destroy_metrics_list(metrics_list *list);

@@ -6,8 +6,9 @@
 #define UTILS_H
 
 #include <math.h>
+#include <stdlib.h>
 
-inline double calc_distance(double lat1, double lon1, double lat2, double lon2) {
+inline double calc_distance(double lat1, double lon1, double alt1, double lat2, double lon2, double alt2) {
     double dlat, dlon, a, c, distance;
 
     // Convert latitudes and longitudes to radians
@@ -31,6 +32,7 @@ inline double calc_distance(double lat1, double lon1, double lat2, double lon2) 
     distance = earth_radius * c;
 
     // we assume altitude of 0 so no difference there
+    distance += abs(alt2 - alt1);
 
     return distance;
 }

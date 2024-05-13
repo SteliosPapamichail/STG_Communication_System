@@ -92,6 +92,22 @@ gs_add_coords parse_gs_add_coords_event(const char *line) {
     return data;
 }
 
+status_check parse_status_check(const char *line) {
+    status_check data;
+    const char *token = strtok((char *) line, " ");
+    token = strtok(NULL, " "); // skip event
+
+    // could use loops here :)
+    data.st_rank = atoi(token);
+    token = strtok(NULL, " "); // skip event
+    data.st_coords[0] = atof(token); // lat
+    token = strtok(NULL, " ");
+    data.st_coords[1] = atof(token); // longitude
+    token = strtok(NULL, " ");
+    data.st_coords[2] = atof(token); // alt
+    return data;
+}
+
 st_add_metric parse_st_add_metric_event(const char *line) {
     st_add_metric data;
     // Tokenize the line
@@ -121,7 +137,36 @@ st_add_metric parse_st_add_metric_event(const char *line) {
         return data; // Returning empty or default data
     }
     // Concatenate space and date to the timestamp buffer
-    strncat(data.timestamp, " ", 1); // Add space separator
+    strcat(data.timestamp, " "); // Add space separator
+    strncat(data.timestamp + time_len + 1, token, date_len); // Concatenate date
+    data.timestamp[time_len + 1 + date_len] = '\0'; // Null-terminate the timestamp
+    return data;
+}
+
+avg_earth_temp_request parse_avg_earth_temp(const char *line) {
+    avg_earth_temp_request data;
+    // Tokenize the line
+    const char *token = strtok((char *) line, " ");
+
+    // Parse time
+    token = strtok(NULL, " ");
+    const size_t time_len = strlen(token);
+    if (time_len >= DATETIME_MAX_LENGTH) {
+        // Handle error: Time string exceeds maximum length
+        return data; // Returning empty or default data
+    }
+    strncpy(data.timestamp, token, time_len);
+    data.timestamp[time_len] = '\0'; // Null-terminate the time part
+
+    // Parse date
+    token = strtok(NULL, " ");
+    const size_t date_len = strlen(token);
+    if (date_len + time_len + 1 > DATETIME_MAX_LENGTH) {
+        // Handle error: Combined length of time and date exceeds maximum length
+        return data; // Returning empty or default data
+    }
+    // Concatenate space and date to the timestamp buffer
+    strcat(data.timestamp, " "); // Add space separator
     strncat(data.timestamp + time_len + 1, token, date_len); // Concatenate date
     data.timestamp[time_len + 1 + date_len] = '\0'; // Null-terminate the timestamp
     return data;
