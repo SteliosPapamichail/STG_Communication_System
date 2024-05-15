@@ -81,6 +81,15 @@ void print_metrics_list(const metrics_list *list) {
     }
 }
 
+void print_metrics_to_file(FILE *out, const metrics_list *list) {
+    const temp_metric *curr = list->head;
+
+    while (curr != NULL) {
+        fprintf(out, "%s,%.2f\n", curr->timestamp, curr->temperature);
+        curr = curr->next;
+    }
+}
+
 float get_temp_for_timestamp(const metrics_list *list, const char *timestamp) {
     const temp_metric *curr = list->head;
 

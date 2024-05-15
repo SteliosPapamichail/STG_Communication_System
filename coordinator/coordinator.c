@@ -7,8 +7,8 @@
 #include <stdlib.h>
 #include <mpi/mpi.h>
 #include "coordinator.h"
-
 #include "../common/constants.h"
+#include "../common/utils.h"
 
 extern int MAX_LINE_LENGTH;
 
@@ -143,8 +143,9 @@ st_add_metric parse_st_add_metric_event(const char *line) {
     return data;
 }
 
-avg_earth_temp_request parse_avg_earth_temp(const char *line) {
+avg_earth_temp_request parse_avg_earth_temp(char *line) {
     avg_earth_temp_request data;
+
     // Tokenize the line
     const char *token = strtok((char *) line, " ");
 

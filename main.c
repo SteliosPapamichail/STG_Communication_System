@@ -174,7 +174,10 @@ int main(int argc, char *argv[]) {
                 printf("[Coordinator (ID %d) - SYNC] Total status checks performed: %d\n", rank,
                        total_status_checks);
             } else if (strcmp(event, "PRINT") == 0) {
-                // Handle other line types as needed
+                int gs_leader = get_gs_leader_coordinator();
+                MPI_Send((void *) 0, 0, MPI_INT, gs_leader, PRINT, MPI_COMM_WORLD);
+                printf("coordinator sent print to gs leader, waiting for done\n");
+                MPI_Recv(NULL, 0, MPI_INT, gs_leader, PRINT_DONE, MPI_COMM_WORLD, &status);
             } else if (strcmp(event, "START_LELECT_ST") == 0) {
                 //todo: replace with mpi_scatter probably to improve network utilization
                 for (int i = 0; i < (n - 1) / 2; i++) {
@@ -391,6 +394,7 @@ int main(int argc, char *argv[]) {
                              MPI_COMM_WORLD,
                              &status_world);
                     printf("GS leader got final avg temp from ST leader. Adding and sending to coordinator\n");
+                    printf("================================== Timestamp %s\n", data.timestamp);
                     add_metric_gs(avg_metrics, data.timestamp, data.avg_temperature);
                     MPI_Send(NULL, 0, MPI_INT, n - 1, AVG_EARTH_TEMP_DONE, MPI_COMM_WORLD);
                 } else if (status_world.MPI_TAG == SYNC && status_world.MPI_SOURCE == n - 1) {
@@ -406,8 +410,16 @@ int main(int argc, char *argv[]) {
                         printf("is leader, not sending further\n");
                         total_checks += get_status_checks_count();
                     }
+                } else if (status_world.MPI_TAG == PRINT && status_world.MPI_SOURCE == n - 1) {
+                    MPI_Recv(NULL, 0, MPI_INT, n - 1, PRINT, MPI_COMM_WORLD, &status_world);
+                    printf("GS leader got PRINT from coordinator. Beginning broadcast...\n");
+                    initiate_print_broadcast(rank, group_rank, comm_group);
+                    //todo:sp write metrics to file
+                    write_metrics_file(rank, avg_metrics);
+                    destroy_status_list();
+                    // send print done
+                    //todo:sp need to wait for all gs to be done MPI_Send((void *) 0, 0, MPI_INT, n - 1, PRINT_DONE, MPI_COMM_WORLD);
                 }
-                //todo:sp add sync done
             }
 
             MPI_Iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, comm_group, &probe_gs_flag, &status_gs);
@@ -456,6 +468,11 @@ int main(int argc, char *argv[]) {
                                rank, data.total_checks);
                         MPI_Send(&data.total_checks, 1, MPI_INT, n - 1, SYNC_DONE, MPI_COMM_WORLD);
                     }
+                } else if (status_gs.MPI_TAG == PRINT) {
+                    MPI_Recv(NULL, 0, MPI_INT, status_gs.MPI_SOURCE, PRINT, comm_group, &status_gs);
+                    printf("GS %d got print from %d.\n", rank, status_gs.MPI_SOURCE);
+                    initiate_print_broadcast(rank, status_gs.MPI_SOURCE, comm_group);
+                    destroy_status_list();
                 } else {
                     printf("GS %d got weird event %d from %d\n", rank, status_gs.MPI_TAG,
                            status_gs.MPI_SOURCE + group_size);

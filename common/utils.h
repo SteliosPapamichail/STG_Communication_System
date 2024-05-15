@@ -36,5 +36,4 @@ inline double calc_distance(double lat1, double lon1, double alt1, double lat2, 
 
     return distance;
 }
-
 #endif //UTILS_H

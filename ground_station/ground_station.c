@@ -5,19 +5,32 @@
 #include <stdio.h>
 #include <malloc.h>
 #include "ground_station.h"
-
 #include <string.h>
-
 #include "../common/event_payloads.h"
 #include "../common/utils.h"
 #include "../common/mpi_datatypes.h"
 
-int parent_gs = -1; // -1 denotes the rootn
+int parent_gs = -1; // -1 denotes the root
 int *neighbor_gs = NULL;
 int num_of_neighbors = 0;
 float station_coordinates[3];
 int st_leader_rank;
+
+// print-related vars
 int num_of_status_checks_performed = 0;
+status_info *status_list = NULL;
+
+void save_status(const status_info data) {
+    num_of_status_checks_performed++;
+    status_list = realloc(status_list, num_of_status_checks_performed * sizeof(status_info));
+    // handle realloc errors :)
+    status_list[num_of_status_checks_performed - 1] = data;
+}
+
+void destroy_status_list() {
+    free(status_list);
+    status_list = NULL;
+}
 
 extern inline double calc_distance(double lat1, double lon1, double alt1, double lat2, double lon2, double alt2);
 
@@ -107,7 +120,9 @@ void perform_gs_leader_election(int coordinator_rank, int rank, MPI_Comm comm) {
                 printf("Process %d got TERMINATE from %d with leader %d\n", rank, status.MPI_SOURCE, sender_rank);
                 for (int i = 0; i < num_of_neighbors; i++) {
                     printf("Process %d propagating leader to process %d\n", rank, neighbor_gs[i]);
-                    if(neighbor_gs[i] != status.MPI_SOURCE) MPI_Send(&leader_rank, 1, MPI_INT, neighbor_gs[i], TERMINATE_LELECT_GS, comm);
+                    if (neighbor_gs[i] != status.MPI_SOURCE)
+                        MPI_Send(&leader_rank, 1, MPI_INT, neighbor_gs[i],
+                                 TERMINATE_LELECT_GS, comm);
                 }
                 break;
             }
@@ -169,7 +184,9 @@ void perform_gs_leader_election(int coordinator_rank, int rank, MPI_Comm comm) {
                        status.MPI_SOURCE);
                 for (int j = 0; j < num_of_neighbors; j++) {
                     printf("Process %d sending terminate to %d\n", rank, neighbor_gs[j]);
-                    if(neighbor_gs[j] != status.MPI_SOURCE) MPI_Send(&sender_rank, 1, MPI_INT, neighbor_gs[j], TERMINATE_LELECT_GS, comm);
+                    if (neighbor_gs[j] != status.MPI_SOURCE)
+                        MPI_Send(&sender_rank, 1, MPI_INT, neighbor_gs[j],
+                                 TERMINATE_LELECT_GS, comm);
                 }
                 break;
             }
@@ -183,7 +200,9 @@ void perform_gs_leader_election(int coordinator_rank, int rank, MPI_Comm comm) {
                 leader_rank = rank;
                 for (int j = 0; j < num_of_neighbors; j++) {
                     printf("Process %d propagating ourself (winner) to %d\n", rank, neighbor_gs[j]);
-                    if(neighbor_gs[j] != remaining_neighbor) MPI_Send(&leader_rank, 1, MPI_INT, neighbor_gs[j], TERMINATE_LELECT_GS, comm);
+                    if (neighbor_gs[j] != remaining_neighbor)
+                        MPI_Send(&leader_rank, 1, MPI_INT, neighbor_gs[j],
+                                 TERMINATE_LELECT_GS, comm);
                 }
                 break;
             } else {
@@ -193,7 +212,9 @@ void perform_gs_leader_election(int coordinator_rank, int rank, MPI_Comm comm) {
                 leader_rank = status.MPI_SOURCE;
                 for (int j = 0; j < num_of_neighbors; j++) {
                     printf("Process %d propagating other process/winner to %d\n", rank, neighbor_gs[j]);
-                    if(neighbor_gs[j] != remaining_neighbor) MPI_Send(&leader_rank, 1, MPI_INT, neighbor_gs[j], TERMINATE_LELECT_GS, comm);
+                    if (neighbor_gs[j] != remaining_neighbor)
+                        MPI_Send(&leader_rank, 1, MPI_INT, neighbor_gs[j],
+                                 TERMINATE_LELECT_GS, comm);
                 }
                 break;
             }
@@ -202,7 +223,9 @@ void perform_gs_leader_election(int coordinator_rank, int rank, MPI_Comm comm) {
             leader_rank = sender_rank;
             printf("Process %d got terminate from %d with leader being %d!\n", rank, status.MPI_SOURCE, leader_rank);
             for (int j = 0; j < num_of_neighbors; j++) {
-                if(neighbor_gs[j] != remaining_neighbor) MPI_Send(&leader_rank, 1, MPI_INT, neighbor_gs[j], TERMINATE_LELECT_GS, comm);
+                if (neighbor_gs[j] != remaining_neighbor)
+                    MPI_Send(&leader_rank, 1, MPI_INT, neighbor_gs[j],
+                             TERMINATE_LELECT_GS, comm);
             }
             break;
         }
@@ -273,4 +296,52 @@ void send_check_count_to_leader(const int rank, sync *data, const int source_ran
         }
     }
     printf("%d Exiting function call...\n", rank);
+}
+
+void write_status_file(const int rank) {
+    char filename[256];
+    sprintf(filename, "gs_%d_statuses.txt", rank);
+    FILE *file = fopen(filename, "w");
+    if (file == NULL) {
+        fprintf(stderr, "Failed to create file\n");
+        return;
+    }
+
+    //todo:REMOVE TEST DATA
+    status_info test;
+    for (int i = 0; i < 5; i++) {
+        test.satellite_rank = i;
+        test.status = 31.54141;
+        save_status(test);
+    }
+
+    for (int i = 0; i < num_of_status_checks_performed; i++) {
+        fprintf(file, "satellite %d: %.2f\n", status_list[i].satellite_rank, status_list[i].status);
+    }
+
+    fclose(file);
+}
+
+void write_metrics_file(const int rank, const metrics_list *list) {
+    char filename[256];
+    sprintf(filename, "gs_leader_%d_metrics.txt", rank);
+    FILE *file = fopen(filename, "w");
+    if (file == NULL) {
+        fprintf(stderr, "Failed to create file\n");
+        return;
+    }
+    print_metrics_to_file(file, list);
+    fclose(file);
+}
+
+void initiate_print_broadcast(const int rank, const int source_rank, MPI_Comm comm) {
+    write_status_file(rank); // create leader's status file
+    printf("GS %d wrote status file!\n", rank);
+    // broadcast print to neighbors
+    for (int i = 0; i < num_of_neighbors; i++) {
+        if (neighbor_gs[i] != source_rank) {
+            MPI_Send((void *) 0, 0, MPI_INT, neighbor_gs[i], PRINT, comm);
+            printf("gs %d sent print to %d\n", rank, neighbor_gs[i]);
+        }
+    }
 }

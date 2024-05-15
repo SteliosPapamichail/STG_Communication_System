@@ -27,6 +27,6 @@ st_add_metric parse_st_add_metric_event(const char *line);
 
 status_check parse_status_check(const char *line);
 
-avg_earth_temp_request parse_avg_earth_temp(const char *line);
+avg_earth_temp_request parse_avg_earth_temp(char *line);
 
 #endif //STG_COMMUNICATION_SYSTEM_COORDINATOR_H

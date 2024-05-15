@@ -34,4 +34,5 @@ void print_metrics_list(const metrics_list *list);
 
 void destroy_metrics_list(metrics_list *list);
 
+void print_metrics_to_file(FILE *out, const metrics_list *list);
 #endif //STG_COMMUNICATION_SYSTEM_TEMP_METRICS_H
