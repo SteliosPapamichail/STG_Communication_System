@@ -79,6 +79,11 @@ typedef struct e_avg_earth_temp_response {
     int num_of_actual_measurements;
 } avg_earth_temp;
 
+typedef struct e_sync {
+    int gs_leader;
+    int total_checks;
+} sync;
+
 typedef struct e_st_lelect_probe {
     int rank;
     int phase;

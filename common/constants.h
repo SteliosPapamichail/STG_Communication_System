@@ -38,6 +38,8 @@ enum event_t {
     LELECT_TERMINATE = 19,
     ST_LEADER = 20,
     GS_LEADER = 21,
-    ELECT = 22
+    ELECT = 22,
+    SYNC_DONE = 23,
+    TERMINATE_LELECT_GS = 24
 };
 #endif //STG_COMMUNICATION_SYSTEM_CONSTANTS_H

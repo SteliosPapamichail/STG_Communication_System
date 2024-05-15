@@ -293,3 +293,29 @@ MPI_Datatype avg_earth_temp_res_event_datatype() {
     }
     return datatype;
 }
+
+MPI_Datatype sync_event_datatype() {
+    MPI_Datatype datatype;
+    int block_lengths[2] = {1,1};
+    // Calculate displacements for each member of the struct
+    MPI_Aint displacements[2];
+    MPI_Aint base_address;
+    MPI_Get_address(&((sync *) 0)->gs_leader, &displacements[0]);
+    MPI_Get_address(&((sync *) 0)->total_checks, &displacements[1]);
+    MPI_Get_address(NULL, &base_address);
+
+    // Adjust displacements relative to the base address
+    for (int i = 0; i < 2; i++) {
+        displacements[i] -= base_address;
+    }
+
+    // Define datatypes for each member of the struct
+    MPI_Datatype types[2] = {MPI_INT, MPI_INT};
+
+    // Create the MPI datatype for the struct
+    const int errcode = MPI_Type_create_struct(2, block_lengths, displacements, types, &datatype);
+    if (errcode != MPI_SUCCESS) {
+        printf("Failed to create MPI_Datatype for custom event!");
+    }
+    return datatype;
+}

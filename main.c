@@ -67,6 +67,7 @@ int main(int argc, char *argv[]) {
     MPI_Datatype stat_check_gs_datatype = stat_check_gs_event_datatype();
     MPI_Datatype avg_earth_temp_req_datatype = avg_earth_temp_req_event_datatype();
     MPI_Datatype avg_earth_temp_res_datatype = avg_earth_temp_res_event_datatype();
+    MPI_Datatype sync_datatype = sync_event_datatype();
     MPI_Type_commit(&connect_datatype);
     MPI_Type_commit(&add_status_datatype);
     MPI_Type_commit(&coords_datatype);
@@ -79,6 +80,7 @@ int main(int argc, char *argv[]) {
     MPI_Type_commit(&stat_check_gs_datatype);
     MPI_Type_commit(&avg_earth_temp_req_datatype);
     MPI_Type_commit(&avg_earth_temp_res_datatype);
+    MPI_Type_commit(&sync_datatype);
 
     // Identify group information within each group
     int group_rank, group_size;
@@ -127,6 +129,8 @@ int main(int argc, char *argv[]) {
                 continue;
             }
 
+            printf("parsing %s event\n", event);
+
             // parse other events after CONNECT events have finished
             if (strcmp(event, "ADD_STATUS") == 0) {
                 st_add_status event_data = parse_add_status_event(line);
@@ -150,7 +154,6 @@ int main(int argc, char *argv[]) {
 
                 //todo:sp add receive so that we wait for completion etc.
             } else if (strcmp(event, "AVG_EARTH_TEMP") == 0) {
-                // Handle other line types as needed
                 avg_earth_temp_request event_data = parse_avg_earth_temp(line);
                 printf("timestamp %s\n", event_data.timestamp);
                 MPI_Send(&event_data, 1, avg_earth_temp_req_datatype, get_gs_leader_coordinator(), AVG_EARTH_TEMP,
@@ -160,7 +163,16 @@ int main(int argc, char *argv[]) {
                 MPI_Recv(NULL, 0, MPI_INT, get_gs_leader_coordinator(), AVG_EARTH_TEMP_DONE, MPI_COMM_WORLD, &status);
                 printf("got avg temp done!\n");
             } else if (strcmp(event, "SYNC") == 0) {
-                // Handle other line types as needed
+                int gs_leader = get_gs_leader_coordinator();
+                printf("------ GS LEADER = %d\n", gs_leader);
+                // send SYNC to all GS along with the leader to ease propagation throughout the tree
+                for (int i = (n - 1) / 2; i < n - 1; i++) {
+                    MPI_Send(&gs_leader, 1, MPI_INT, i, SYNC, MPI_COMM_WORLD);
+                }
+                int total_status_checks;
+                MPI_Recv(&total_status_checks, 1, MPI_INT, gs_leader, SYNC_DONE, MPI_COMM_WORLD, &status);
+                printf("[Coordinator (process %d) - SYNC] Total status checks performed: %d\n", rank,
+                       total_status_checks);
             } else if (strcmp(event, "PRINT") == 0) {
                 // Handle other line types as needed
             } else if (strcmp(event, "START_LELECT_ST") == 0) {
@@ -189,6 +201,7 @@ int main(int argc, char *argv[]) {
                 // account for GS communicator size
                 gs_leader_rank += (n - 1) / 2;
                 set_gs_leader_coordinator(gs_leader_rank);
+                printf("==== COORDINATOR GOT GS LEADER %d\n", gs_leader_rank);
                 // forward gs rank to all ST processes
                 for (int i = 0; i < (n - 1) / 2; i++) {
                     MPI_Send(&gs_leader_rank, 1, MPI_INT, i, GS_LEADER, MPI_COMM_WORLD);
@@ -250,33 +263,35 @@ int main(int argc, char *argv[]) {
                     break;
                 } else if (status_world.MPI_TAG == AVG_EARTH_TEMP) {
                     avg_earth_temp_request req;
-                    printf("st leader waiting to receive avg earth start");
+                    printf("st leader waiting to receive avg earth start\n");
                     MPI_Recv(&req, 1, avg_earth_temp_req_datatype, status_world.MPI_SOURCE, AVG_EARTH_TEMP,
                              MPI_COMM_WORLD,
                              &status_world);
-                    printf("ST leader got request for avg temp\n");
+                    printf("ST leader %d got request for avg temp\n", rank);
 
                     avg_earth_temp result;
                     float temp = get_temp_for_timestamp(metrics, req.timestamp);
                     strncpy(result.timestamp, req.timestamp, DATETIME_MAX_LENGTH);
                     result.avg_temperature = temp;
-                    result.st_leader = rank;
+                    result.st_leader = group_rank;
                     result.num_of_actual_measurements = 0;
-                    if (temp != -1.0f) { // measurement exists
+                    if (temp != -1.0f) {
+                        // measurement exists
                         result.num_of_actual_measurements = 1;
                     }
                     MPI_Send(&result, 1, avg_earth_temp_res_datatype, get_left_ring_neighbor(group_rank, group_size),
                              AVG_EARTH_TEMP,
                              comm_group);
+                    printf("ST leader sent temp to left neighbor %d\n", get_left_ring_neighbor(group_rank, group_size));
                 }
             }
 
             MPI_Iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, comm_group, &probe_group_flag, &status_group);
 
             if (probe_group_flag) {
-                if (status_group.MPI_TAG == AVG_EARTH_TEMP && status_group.MPI_SOURCE == get_right_ring_neighbor(
-                        group_rank, group_size)) {
+                if (status_group.MPI_TAG == AVG_EARTH_TEMP) {
                     avg_earth_temp data;
+                    printf("ST %d waiting to receive avg earth temp request from ring\n", group_rank);
                     MPI_Recv(&data, 1, avg_earth_temp_res_datatype, status_group.MPI_SOURCE, AVG_EARTH_TEMP, comm_group,
                              &status_group);
                     printf("st %d got request from ring\n", group_rank);
@@ -291,7 +306,8 @@ int main(int argc, char *argv[]) {
                         // propagate message
                         float temperature = get_temp_for_timestamp(metrics, data.timestamp);
                         data.avg_temperature += temperature;
-                        if (temperature != -1.0f) { // measurement exists
+                        if (temperature != -1.0f) {
+                            // measurement exists
                             data.num_of_actual_measurements += 1;
                         }
                         printf("non-leader incrementing temp\n");
@@ -310,6 +326,8 @@ int main(int argc, char *argv[]) {
         MPI_Status status_world, status_gs;
         int probe_world_flag, probe_gs_flag;
         int leader_election_done = 0;
+        int total_checks = 0;
+        int num_of_sync_replies = 0;
         metrics_list *avg_metrics = create_metrics_list();
 
         do {
@@ -344,6 +362,7 @@ int main(int argc, char *argv[]) {
                     MPI_Barrier(comm_group);
                     perform_gs_leader_election(n - 1, group_rank, comm_group);
                     leader_election_done = 1;
+                    MPI_Barrier(comm_group);
                 } else if (status_world.MPI_TAG == TERMINATE && status_world.MPI_SOURCE == n - 1) {
                     MPI_Recv(NULL, 0, MPI_INT, n - 1, TERMINATE, MPI_COMM_WORLD, &status_world);
                     break;
@@ -370,7 +389,21 @@ int main(int argc, char *argv[]) {
                     printf("GS leader got final avg temp from ST leader. Adding and sending to coordinator\n");
                     add_metric_gs(avg_metrics, data.timestamp, data.avg_temperature);
                     MPI_Send(NULL, 0, MPI_INT, n - 1, AVG_EARTH_TEMP_DONE, MPI_COMM_WORLD);
+                } else if (status_world.MPI_TAG == SYNC && status_world.MPI_SOURCE == n - 1) {
+                    sync data;
+                    MPI_Recv(&data.gs_leader, 1, MPI_INT, n - 1, SYNC, MPI_COMM_WORLD, &status_world);
+                    printf("GS %d got sync from COORDINATOR\n", rank);
+                    data.gs_leader %= group_size; // get local gs leader rank
+                    data.total_checks = get_status_checks_count();
+
+                    if (group_rank != data.gs_leader) {
+                        send_check_count_to_leader(rank, &data, group_rank, comm_group, sync_datatype);
+                    } else {
+                        printf("is leader, not sending further\n");
+                        total_checks += get_status_checks_count();
+                    }
                 }
+                //todo:sp add sync done
             }
 
             MPI_Iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, comm_group, &probe_gs_flag, &status_gs);
@@ -399,10 +432,35 @@ int main(int argc, char *argv[]) {
                     MPI_Recv(&data, 1, status_check_datatype, MPI_ANY_SOURCE, FIND_MIN_DIST, comm_group, &status_gs);
                     printf("GS %d got find min dist from neighbor\n", rank);
                     get_min_dist_gs(group_rank, data, comm_group, status_check_datatype);
+                } else if (status_gs.MPI_TAG == SYNC) {
+                    // got sync from a node during traversal
+                    sync data;
+                    printf("GS %d waiting to receive sync from graph\n", rank);
+                    MPI_Recv(&data, 1, sync_datatype, status_gs.MPI_SOURCE, SYNC, comm_group, &status_gs);
+                    printf("GS %d got sync FROM NEIGHBOR %d\n", rank, status_gs.MPI_SOURCE + group_size);
+                    if (data.gs_leader != group_rank) {
+                        send_check_count_to_leader(rank, &data, status_gs.MPI_SOURCE, comm_group, sync_datatype);
+                    } else {
+                        num_of_sync_replies++;
+                        printf("====> GS leader got a reply from %d! Count is %d\n", num_of_sync_replies,
+                               status_gs.MPI_SOURCE + group_size);
+                        total_checks += data.total_checks;
+                    }
+                    if (num_of_sync_replies == group_size - 1) {
+                        printf("GS Leader gathered %d sync replies\n", num_of_sync_replies);
+                    }
+                } else if (status_gs.MPI_TAG == TERMINATE_LELECT_GS) {
+                    int temp;
+                    MPI_Recv(&temp, 1, MPI_INT, MPI_ANY_SOURCE, TERMINATE_LELECT_GS, comm_group, &status_gs);
+                } else {
+                    printf("GS %d got weird event %d from %d\n", rank, status_gs.MPI_TAG,
+                           status_gs.MPI_SOURCE + group_size);
+                    //MPI_Recv(NULL, 1, MPI_INT, MPI_ANY_SOURCE, MPI_ANY_TAG, comm_group, &status_gs);
                 }
             }
         } while (1);
 
+        printf("gs exited loop\n");
         free_neighbor_gs();
         destroy_metrics_list(avg_metrics);
     }
@@ -410,9 +468,6 @@ int main(int argc, char *argv[]) {
     printf("process %d waiting at barrier\n", rank);
     MPI_Barrier(MPI_COMM_WORLD);
 
-    // clean custom datatypes
-
-    //todo:sp to fix stack smash, move to each process and see which one triggers it
     MPI_Type_free(&connect_datatype);
     MPI_Type_free(&add_status_datatype);
     MPI_Type_free(&coords_datatype);
@@ -425,6 +480,7 @@ int main(int argc, char *argv[]) {
     MPI_Type_free(&stat_check_gs_datatype);
     MPI_Type_free(&avg_earth_temp_req_datatype);
     MPI_Type_free(&avg_earth_temp_res_datatype);
+    MPI_Type_free(&sync_datatype);
     MPI_Comm_free(&comm_group);
     MPI_Finalize();
     return 0;

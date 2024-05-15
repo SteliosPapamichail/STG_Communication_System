@@ -32,4 +32,6 @@ MPI_Datatype avg_earth_temp_req_event_datatype();
 
 MPI_Datatype avg_earth_temp_res_event_datatype();
 
+MPI_Datatype sync_event_datatype();
+
 #endif //STG_COMMUNICATION_SYSTEM_MPI_DATATYPES_H
