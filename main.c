@@ -171,7 +171,7 @@ int main(int argc, char *argv[]) {
                 }
                 int total_status_checks;
                 MPI_Recv(&total_status_checks, 1, MPI_INT, gs_leader, SYNC_DONE, MPI_COMM_WORLD, &status);
-                printf("[Coordinator (process %d) - SYNC] Total status checks performed: %d\n", rank,
+                printf("[Coordinator (ID %d) - SYNC] Total status checks performed: %d\n", rank,
                        total_status_checks);
             } else if (strcmp(event, "PRINT") == 0) {
                 // Handle other line types as needed
@@ -315,6 +315,10 @@ int main(int argc, char *argv[]) {
                                  AVG_EARTH_TEMP,
                                  comm_group);
                     }
+                } else {
+                    printf("ST %d got weird status %d!\n", rank, status_group.MPI_TAG);
+                    while (1) {
+                    }
                 }
             }
         } while (1);
@@ -447,15 +451,14 @@ int main(int argc, char *argv[]) {
                         total_checks += data.total_checks;
                     }
                     if (num_of_sync_replies == group_size - 1) {
-                        printf("GS Leader gathered %d sync replies\n", num_of_sync_replies);
+                        // size - 1 because the leader has already added its own total initially
+                        printf("[Ground Station Leader (ID %d) - SYNC] Total status checks performed %d!\n",
+                               rank, data.total_checks);
+                        MPI_Send(&data.total_checks, 1, MPI_INT, n - 1, SYNC_DONE, MPI_COMM_WORLD);
                     }
-                } else if (status_gs.MPI_TAG == TERMINATE_LELECT_GS) {
-                    int temp;
-                    MPI_Recv(&temp, 1, MPI_INT, MPI_ANY_SOURCE, TERMINATE_LELECT_GS, comm_group, &status_gs);
                 } else {
                     printf("GS %d got weird event %d from %d\n", rank, status_gs.MPI_TAG,
                            status_gs.MPI_SOURCE + group_size);
-                    //MPI_Recv(NULL, 1, MPI_INT, MPI_ANY_SOURCE, MPI_ANY_TAG, comm_group, &status_gs);
                 }
             }
         } while (1);

@@ -93,7 +93,6 @@ void perform_gs_leader_election(int coordinator_rank, int rank, MPI_Comm comm) {
             if (status.MPI_TAG == ELECT) {
                 for (int i = 0; i < num_of_neighbors; i++) {
                     if (neighbor_gs[i] == status.MPI_SOURCE) {
-                        printf("setting received from %d\n", neighbor_gs[i]);
                         neighbor_received_from[i] = 1;
                     }
                 }
@@ -108,7 +107,7 @@ void perform_gs_leader_election(int coordinator_rank, int rank, MPI_Comm comm) {
                 printf("Process %d got TERMINATE from %d with leader %d\n", rank, status.MPI_SOURCE, sender_rank);
                 for (int i = 0; i < num_of_neighbors; i++) {
                     printf("Process %d propagating leader to process %d\n", rank, neighbor_gs[i]);
-                    MPI_Send(&leader_rank, 1, MPI_INT, neighbor_gs[i], TERMINATE_LELECT_GS, comm);
+                    if(neighbor_gs[i] != status.MPI_SOURCE) MPI_Send(&leader_rank, 1, MPI_INT, neighbor_gs[i], TERMINATE_LELECT_GS, comm);
                 }
                 break;
             }
@@ -170,7 +169,7 @@ void perform_gs_leader_election(int coordinator_rank, int rank, MPI_Comm comm) {
                        status.MPI_SOURCE);
                 for (int j = 0; j < num_of_neighbors; j++) {
                     printf("Process %d sending terminate to %d\n", rank, neighbor_gs[j]);
-                    MPI_Send(&sender_rank, 1, MPI_INT, neighbor_gs[j], TERMINATE_LELECT_GS, comm);
+                    if(neighbor_gs[j] != status.MPI_SOURCE) MPI_Send(&sender_rank, 1, MPI_INT, neighbor_gs[j], TERMINATE_LELECT_GS, comm);
                 }
                 break;
             }
@@ -184,17 +183,17 @@ void perform_gs_leader_election(int coordinator_rank, int rank, MPI_Comm comm) {
                 leader_rank = rank;
                 for (int j = 0; j < num_of_neighbors; j++) {
                     printf("Process %d propagating ourself (winner) to %d\n", rank, neighbor_gs[j]);
-                    MPI_Send(&leader_rank, 1, MPI_INT, neighbor_gs[j], TERMINATE_LELECT_GS, comm);
+                    if(neighbor_gs[j] != remaining_neighbor) MPI_Send(&leader_rank, 1, MPI_INT, neighbor_gs[j], TERMINATE_LELECT_GS, comm);
                 }
                 break;
             } else {
-                // sender has won and is leader,, wait for terminate signal with winner rank
+                // sender has won and is leader
                 printf("Process %d got elect on same edge and lost fight. winner was %d\n", rank,
                        status.MPI_SOURCE);
                 leader_rank = status.MPI_SOURCE;
                 for (int j = 0; j < num_of_neighbors; j++) {
                     printf("Process %d propagating other process/winner to %d\n", rank, neighbor_gs[j]);
-                    MPI_Send(&leader_rank, 1, MPI_INT, neighbor_gs[j], TERMINATE_LELECT_GS, comm);
+                    if(neighbor_gs[j] != remaining_neighbor) MPI_Send(&leader_rank, 1, MPI_INT, neighbor_gs[j], TERMINATE_LELECT_GS, comm);
                 }
                 break;
             }
@@ -203,7 +202,7 @@ void perform_gs_leader_election(int coordinator_rank, int rank, MPI_Comm comm) {
             leader_rank = sender_rank;
             printf("Process %d got terminate from %d with leader being %d!\n", rank, status.MPI_SOURCE, leader_rank);
             for (int j = 0; j < num_of_neighbors; j++) {
-                MPI_Send(&leader_rank, 1, MPI_INT, neighbor_gs[j], TERMINATE_LELECT_GS, comm);
+                if(neighbor_gs[j] != remaining_neighbor) MPI_Send(&leader_rank, 1, MPI_INT, neighbor_gs[j], TERMINATE_LELECT_GS, comm);
             }
             break;
         }
