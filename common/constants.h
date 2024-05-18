@@ -5,7 +5,7 @@
 #ifndef STG_COMMUNICATION_SYSTEM_CONSTANTS_H
 #define STG_COMMUNICATION_SYSTEM_CONSTANTS_H
 
-#define DATETIME_MAX_LENGTH 21
+#define DATETIME_MAX_LENGTH 20
 
 // group ids
 enum process_group_id {

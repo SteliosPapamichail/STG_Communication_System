@@ -139,7 +139,7 @@ st_add_metric parse_st_add_metric_event(const char *line) {
     // Concatenate space and date to the timestamp buffer
     strcat(data.timestamp, " "); // Add space separator
     strncat(data.timestamp + time_len + 1, token, date_len); // Concatenate date
-    data.timestamp[time_len + 1 + date_len] = '\0'; // Null-terminate the timestamp
+    data.timestamp[time_len + date_len] = '\0'; // Null-terminate the timestamp
     return data;
 }
 
@@ -169,6 +169,6 @@ avg_earth_temp_request parse_avg_earth_temp(char *line) {
     // Concatenate space and date to the timestamp buffer
     strcat(data.timestamp, " "); // Add space separator
     strncat(data.timestamp + time_len + 1, token, date_len); // Concatenate date
-    data.timestamp[time_len + 1 + date_len] = '\0'; // Null-terminate the timestamp
+    data.timestamp[time_len + date_len] = '\0'; // Null-terminate the timestamp
     return data;
 }

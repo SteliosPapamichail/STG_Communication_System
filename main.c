@@ -255,6 +255,7 @@ int main(int argc, char *argv[]) {
                     MPI_Barrier(comm_group);
                     perform_st_leader_election(n - 1, group_rank, group_size, comm_group, st_lelect_probe_datatype,
                                                st_lelect_reply_datatype);
+                    MPI_Barrier(comm_group);
                     leader_election_done = 1;
                 } else if (status_world.MPI_TAG == GS_LEADER && status_world.MPI_SOURCE == n - 1) {
                     int gs_leader_rank;
@@ -287,7 +288,7 @@ int main(int argc, char *argv[]) {
                              comm_group);
                     printf("ST leader sent temp to left neighbor %d\n", get_left_ring_neighbor(group_rank, group_size));
                 } else {
-                    printf("ST %d got weird tag %d\n", rank, status_world.MPI_TAG);
+                    printf("ST %d got weird tag %d from %d\n", rank, status_world.MPI_TAG, status_world.MPI_SOURCE);
                     while (1) {
                     }
                 }
@@ -323,7 +324,7 @@ int main(int argc, char *argv[]) {
                                  comm_group);
                     }
                 } else {
-                    printf("ST %d got weird status %d!\n", rank, status_group.MPI_TAG);
+                    printf("!!!!!!!!!!!!!!!!! ST %d got weird status %d from %d in group!\n", rank, status_group.MPI_TAG, status_group.MPI_SOURCE);
                     while (1) {
                     }
                 }
@@ -419,6 +420,7 @@ int main(int argc, char *argv[]) {
                     printf("GS leader got PRINT from coordinator. Beginning broadcast...\n");
                     initiate_print_broadcast(rank, group_rank, comm_group);
                     write_metrics_file(rank, avg_metrics);
+                    send_print_done(group_rank, comm_group);
                 }
             }
 
@@ -476,7 +478,6 @@ int main(int argc, char *argv[]) {
                     destroy_status_list();
                 } else if (status_gs.MPI_TAG == PRINT_DONE) {
                     printf("---- process %d incoming print_done\n", rank);
-                    MPI_Barrier(comm_group);
                     receive_print_done_and_notify(n - 1, group_rank, group_size, comm_group);
                 } else {
                     printf("GS %d got weird event %d from %d\n", rank, status_gs.MPI_TAG,

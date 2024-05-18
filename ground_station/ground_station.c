@@ -366,7 +366,7 @@ void receive_print_done_and_notify(const int coordinator_rank, const int rank,
         MPI_Recv(&sender, 1, MPI_INT, MPI_ANY_SOURCE, MPI_ANY_TAG, comm, &status);
 
         if (status.MPI_TAG == PRINT_DONE) {
-            printf("Node %d received PRINT_DONE from %d\n", rank, status.MPI_SOURCE);
+            printf("Node %d received PRINT_DONE from %d via %d\n", rank, sender, status.MPI_SOURCE);
 
             if (rank == leader_gs) {
                 count++;
