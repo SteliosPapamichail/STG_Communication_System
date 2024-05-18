@@ -15,6 +15,7 @@ int *neighbor_gs = NULL;
 int num_of_neighbors = 0;
 float station_coordinates[3];
 int st_leader_rank;
+int leader_gs;
 
 // print-related vars
 int num_of_status_checks_performed = 0;
@@ -232,6 +233,7 @@ void perform_gs_leader_election(int coordinator_rank, int rank, MPI_Comm comm) {
     } while (1);
     printf("Process %d exited loop with leader being %d\n", rank, leader_rank);
     MPI_Barrier(comm);
+    leader_gs = leader_rank;
     if (rank == leader_rank) {
         printf("Leader sending done to coordinator\n");
         MPI_Send(&rank, 1, MPI_INT, coordinator_rank, LELECT_GS_DONE, MPI_COMM_WORLD);
@@ -343,5 +345,66 @@ void initiate_print_broadcast(const int rank, const int source_rank, MPI_Comm co
             MPI_Send((void *) 0, 0, MPI_INT, neighbor_gs[i], PRINT, comm);
             printf("gs %d sent print to %d\n", rank, neighbor_gs[i]);
         }
+    }
+}
+
+void send_print_done(const int rank, MPI_Comm comm) {
+    for (int i = 0; i < num_of_neighbors; i++) {
+        MPI_Send(&rank, 1, MPI_INT, neighbor_gs[i], PRINT_DONE, comm);
+        printf("gs %d sent print_done to %d\n", rank, neighbor_gs[i]);
+    }
+}
+
+void receive_print_done_and_notify(const int coordinator_rank, const int rank,
+                                   const int group_size, MPI_Comm comm) {
+    int count = 0;
+    MPI_Status status;
+    int sender;
+    int done = 0;
+
+    while (!done) {
+        MPI_Recv(&sender, 1, MPI_INT, MPI_ANY_SOURCE, MPI_ANY_TAG, comm, &status);
+
+        if (status.MPI_TAG == PRINT_DONE) {
+            printf("Node %d received PRINT_DONE from %d\n", rank, status.MPI_SOURCE);
+
+            if (rank == leader_gs) {
+                count++;
+                printf("leader incrementing count. Now %d\n", count);
+
+                if (count == group_size - 1) {
+                    done = 1;
+                    for (int i = 0; i < num_of_neighbors; i++) {
+                        MPI_Send(&sender, 1, MPI_INT, neighbor_gs[i], TERMINATE, comm);
+                        printf("process %d (leader) got all replies, sent terminate to %d\n", rank, neighbor_gs[i]);
+                    }
+                }
+            } else {
+                for (int i = 0; i < num_of_neighbors; i++) {
+                    // propagate print done while not resending to sender
+                    if (status.MPI_SOURCE != neighbor_gs[i]) {
+                        MPI_Send(&sender, 1, MPI_INT, neighbor_gs[i], PRINT_DONE, comm);
+                        printf("process %d propagated print_done to %d\n", rank, neighbor_gs[i]);
+                    }
+                }
+            }
+        } else if (status.MPI_TAG == TERMINATE) {
+            done = 1;
+            printf("Node %d received TERMINATE signal from %d\n", rank, status.MPI_SOURCE);
+            for (int i = 0; i < num_of_neighbors; i++) {
+                if (status.MPI_SOURCE != neighbor_gs[i]) {
+                    MPI_Send(&sender, 1, MPI_INT, neighbor_gs[i], TERMINATE, comm);
+                    printf("process %d got TERMINATE, sent terminate to %d\n", rank, neighbor_gs[i]);
+                }
+            }
+        }
+    }
+
+    MPI_Barrier(comm);
+    if (rank == leader_gs) {
+        MPI_Send((void *) 0, 0, MPI_INT, coordinator_rank, PRINT_DONE, MPI_COMM_WORLD);
+        printf("===> Leader %d has notified coordinator and terminated\n", rank);
+    } else {
+        printf("===> Node %d has terminated\n", rank);
     }
 }

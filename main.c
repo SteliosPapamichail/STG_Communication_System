@@ -286,6 +286,10 @@ int main(int argc, char *argv[]) {
                              AVG_EARTH_TEMP,
                              comm_group);
                     printf("ST leader sent temp to left neighbor %d\n", get_left_ring_neighbor(group_rank, group_size));
+                } else {
+                    printf("ST %d got weird tag %d\n", rank, status_world.MPI_TAG);
+                    while (1) {
+                    }
                 }
             }
 
@@ -385,7 +389,7 @@ int main(int argc, char *argv[]) {
                     printf("GS leader got avg earth temp request!\n");
                     MPI_Send(&request, 1, avg_earth_temp_req_datatype, get_st_leader_gs(), AVG_EARTH_TEMP,
                              MPI_COMM_WORLD);
-                    printf("GS leader sent to ST leader!\n");
+                    printf("GS leader sent to ST leader %d!\n", get_st_leader_gs());
                 } else if (status_world.MPI_TAG == AVG_EARTH_TEMP_DONE && status_world.MPI_SOURCE ==
                            get_st_leader_gs()) {
                     avg_earth_temp data;
@@ -414,11 +418,7 @@ int main(int argc, char *argv[]) {
                     MPI_Recv(NULL, 0, MPI_INT, n - 1, PRINT, MPI_COMM_WORLD, &status_world);
                     printf("GS leader got PRINT from coordinator. Beginning broadcast...\n");
                     initiate_print_broadcast(rank, group_rank, comm_group);
-                    //todo:sp write metrics to file
                     write_metrics_file(rank, avg_metrics);
-                    destroy_status_list();
-                    // send print done
-                    //todo:sp need to wait for all gs to be done MPI_Send((void *) 0, 0, MPI_INT, n - 1, PRINT_DONE, MPI_COMM_WORLD);
                 }
             }
 
@@ -472,16 +472,22 @@ int main(int argc, char *argv[]) {
                     MPI_Recv(NULL, 0, MPI_INT, status_gs.MPI_SOURCE, PRINT, comm_group, &status_gs);
                     printf("GS %d got print from %d.\n", rank, status_gs.MPI_SOURCE);
                     initiate_print_broadcast(rank, status_gs.MPI_SOURCE, comm_group);
+                    send_print_done(group_rank, comm_group);
                     destroy_status_list();
+                } else if (status_gs.MPI_TAG == PRINT_DONE) {
+                    printf("---- process %d incoming print_done\n", rank);
+                    MPI_Barrier(comm_group);
+                    receive_print_done_and_notify(n - 1, group_rank, group_size, comm_group);
                 } else {
                     printf("GS %d got weird event %d from %d\n", rank, status_gs.MPI_TAG,
                            status_gs.MPI_SOURCE + group_size);
+                    while (1) {
+                    }
                 }
             }
         } while (1);
-
-        printf("gs exited loop\n");
         free_neighbor_gs();
+        destroy_status_list();
         destroy_metrics_list(avg_metrics);
     }
 

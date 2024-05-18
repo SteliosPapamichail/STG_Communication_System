@@ -41,6 +41,6 @@ enum event_t {
     ELECT = 22,
     SYNC_DONE = 23,
     TERMINATE_LELECT_GS = 24,
-    PRINT_DONE
+    PRINT_DONE = 25
 };
 #endif //STG_COMMUNICATION_SYSTEM_CONSTANTS_H

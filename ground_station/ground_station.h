@@ -49,6 +49,11 @@ void write_status_file(int rank);
 
 void initiate_print_broadcast(int rank, int source_rank, MPI_Comm comm);
 
-void write_metrics_file(int rank, const metrics_list * list);
+void write_metrics_file(int rank, const metrics_list *list);
+
+void receive_print_done_and_notify(const int coordinator_rank, const int rank,
+                                   const int group_size, MPI_Comm comm);
+
+void send_print_done(const int rank, MPI_Comm comm);
 
 #endif //STG_COMMUNICATION_SYSTEM_GROUND_STATION_H
