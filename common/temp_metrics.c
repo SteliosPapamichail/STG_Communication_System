@@ -86,7 +86,7 @@ void print_metrics_to_file(FILE *out, const metrics_list *list) {
     const temp_metric *curr = list->head;
 
     while (curr != NULL) {
-        fprintf(out, "%s,%.2f", curr->timestamp, curr->temperature);
+        fprintf(out, "%s,%.2f\n", curr->timestamp, curr->temperature);
         curr = curr->next;
     }
 }

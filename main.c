@@ -299,10 +299,8 @@ int main(int argc, char *argv[]) {
                     float st_status = get_st_status();
                     MPI_Send(&st_status, 1, MPI_FLOAT, status_world.MPI_SOURCE, STATUS_CHECK, MPI_COMM_WORLD);
                 } else {
-                    debug_printf("ST %d got weird tag %d from %d\n", rank, status_world.MPI_TAG,
+                    debug_printf("!!!!!!!!!!!!!!!!!!!!!!!ST %d got weird tag %d from %d\n", rank, status_world.MPI_TAG,
                                  status_world.MPI_SOURCE);
-                    while (1) {
-                    }
                 }
             }
 
@@ -338,7 +336,10 @@ int main(int argc, char *argv[]) {
                 } else {
                     debug_printf("!!!!!!!!!!!!!!!!! ST %d got weird status %d from %d in group!\n", rank,
                                  status_group.MPI_TAG, status_group.MPI_SOURCE);
-                    while (1) {
+                    if (status_group.MPI_TAG == LELECT_PROBE) { // consume leaking event
+                        st_lelect_probe temp;
+                        MPI_Recv(&temp, 1, st_lelect_probe_datatype, status_group.MPI_SOURCE, LELECT_PROBE, comm_group,
+                                 &status_group);
                     }
                 }
             }
@@ -518,8 +519,6 @@ int main(int argc, char *argv[]) {
                 } else {
                     debug_printf("GS %d got weird event %d from %d\n", rank, status_gs.MPI_TAG,
                                  status_gs.MPI_SOURCE + group_size);
-                    while (1) {
-                    }
                 }
             }
         } while (1);
