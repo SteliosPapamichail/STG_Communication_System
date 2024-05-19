@@ -4,7 +4,7 @@
 
 #include <stdio.h>
 #include "mpi_datatypes.h"
-
+#include "debug_utils.h"
 #include "constants.h"
 
 MPI_Datatype connect_event_datatype() {
@@ -26,7 +26,7 @@ MPI_Datatype connect_event_datatype() {
 
     const int errcode = MPI_Type_create_struct(2, block_lengths, displacements, types, &datatype);
     if (errcode != MPI_SUCCESS) {
-        printf("Failed to create MPI_Datatype for custom event!");
+        debug_printf("Failed to create MPI_Datatype for custom event!");
     }
     return datatype;
 }
@@ -49,7 +49,7 @@ MPI_Datatype add_status_event_datatype() {
     MPI_Datatype types[2] = {MPI_INT, MPI_FLOAT};
     const int errcode = MPI_Type_create_struct(2, block_lengths, displacements, types, &datatype);
     if (errcode != MPI_SUCCESS) {
-        printf("Failed to create MPI_Datatype for custom event!");
+        debug_printf("Failed to create MPI_Datatype for custom event!");
     }
     return datatype;
 }
@@ -74,7 +74,7 @@ MPI_Datatype add_st_coords_event_datatype(const MPI_Datatype coords_datatype) {
 
     const int errcode = MPI_Type_create_struct(2, block_lengths, displacements, types, &datatype);
     if (errcode != MPI_SUCCESS) {
-        printf("Failed to create MPI_Datatype for custom event!");
+        debug_printf("Failed to create MPI_Datatype for custom event!");
     }
 
     return datatype;
@@ -100,7 +100,7 @@ MPI_Datatype add_gs_coords_event_datatype(MPI_Datatype coords_datatype) {
 
     const int errcode = MPI_Type_create_struct(2, block_lengths, displacements, types, &datatype);
     if (errcode != MPI_SUCCESS) {
-        printf("Failed to create MPI_Datatype for custom event!");
+        debug_printf("Failed to create MPI_Datatype for custom event!");
     }
 
     return datatype;
@@ -126,7 +126,7 @@ MPI_Datatype status_check_event_datatype(MPI_Datatype coords_datatype) {
 
     const int errcode = MPI_Type_create_struct(2, block_lengths, displacements, types, &datatype);
     if (errcode != MPI_SUCCESS) {
-        printf("Failed to create MPI_Datatype for custom event!");
+        debug_printf("Failed to create MPI_Datatype for custom event!");
     }
 
     return datatype;
@@ -153,7 +153,7 @@ MPI_Datatype stat_check_gs_event_datatype() {
     // Create the MPI datatype for the struct
     const int errcode = MPI_Type_create_struct(2, block_lengths, displacements, types, &datatype);
     if (errcode != MPI_SUCCESS) {
-        printf("Failed to create MPI_Datatype for custom event!");
+        debug_printf("Failed to create MPI_Datatype for custom event!");
     }
 
     return datatype;
@@ -188,7 +188,7 @@ MPI_Datatype add_st_metric_event_datatype() {
     // Create the MPI datatype for the struct
     const int errcode = MPI_Type_create_struct(3, block_lengths, displacements, types, &datatype);
     if (errcode != MPI_SUCCESS) {
-        printf("Failed to create MPI_Datatype for custom event!");
+        debug_printf("Failed to create MPI_Datatype for custom event!");
     }
     return datatype;
 }
@@ -215,7 +215,7 @@ MPI_Datatype st_lelect_probe_event_datatype() {
     // Create the MPI datatype for the struct
     const int errcode = MPI_Type_create_struct(3, block_lengths, displacements, types, &datatype);
     if (errcode != MPI_SUCCESS) {
-        printf("Failed to create MPI_Datatype for custom event!");
+        debug_printf("Failed to create MPI_Datatype for custom event!");
     }
     return datatype;
 }
@@ -241,7 +241,7 @@ MPI_Datatype st_lelect_reply_event_datatype() {
     // Create the MPI datatype for the struct
     const int errcode = MPI_Type_create_struct(2, block_lengths, displacements, types, &datatype);
     if (errcode != MPI_SUCCESS) {
-        printf("Failed to create MPI_Datatype for custom event!");
+        debug_printf("Failed to create MPI_Datatype for custom event!");
     }
     return datatype;
 }
@@ -261,7 +261,7 @@ MPI_Datatype avg_earth_temp_req_event_datatype() {
     // Create the MPI datatype for the struct
     const int errcode = MPI_Type_create_struct(1, block_lengths, displacements, types, &datatype);
     if (errcode != MPI_SUCCESS) {
-        printf("Failed to create MPI_Datatype for custom event!");
+        debug_printf("Failed to create MPI_Datatype for custom event!");
     }
     return datatype;
 }
@@ -289,7 +289,7 @@ MPI_Datatype avg_earth_temp_res_event_datatype() {
     // Create the MPI datatype for the struct
     const int errcode = MPI_Type_create_struct(4, block_lengths, displacements, types, &datatype);
     if (errcode != MPI_SUCCESS) {
-        printf("Failed to create MPI_Datatype for custom event!");
+        debug_printf("Failed to create MPI_Datatype for custom event!");
     }
     return datatype;
 }
@@ -315,7 +315,7 @@ MPI_Datatype sync_event_datatype() {
     // Create the MPI datatype for the struct
     const int errcode = MPI_Type_create_struct(2, block_lengths, displacements, types, &datatype);
     if (errcode != MPI_SUCCESS) {
-        printf("Failed to create MPI_Datatype for custom event!");
+        debug_printf("Failed to create MPI_Datatype for custom event!");
     }
     return datatype;
 }

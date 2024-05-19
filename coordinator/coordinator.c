@@ -5,10 +5,8 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <mpi/mpi.h>
 #include "coordinator.h"
 #include "../common/constants.h"
-#include "../common/utils.h"
 
 extern int MAX_LINE_LENGTH;
 

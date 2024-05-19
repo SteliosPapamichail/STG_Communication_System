@@ -6,6 +6,7 @@
 #include "temp_metrics.h"
 #include <string.h>
 #include "event_payloads.h"
+#include "debug_utils.h"
 
 metrics_list *create_metrics_list() {
     metrics_list *list = malloc(sizeof(metrics_list));
@@ -19,13 +20,13 @@ metrics_list *create_metrics_list() {
 
 int add_metric(metrics_list *list, const st_add_metric metric) {
     if (list == NULL) {
-        printf("Error: List is NULL\n");
+        debug_printf("Error: List is NULL\n");
         return 0;
     }
 
     temp_metric *node = malloc(sizeof(temp_metric));
     if (node == NULL) {
-        printf("Error: Failed to allocate memory for node\n");
+        debug_printf("Error: Failed to allocate memory for node\n");
         return 0;
     }
 
@@ -46,13 +47,13 @@ int add_metric(metrics_list *list, const st_add_metric metric) {
 
 int add_metric_gs(metrics_list *list, const char *timestamp, const double temperature) {
     if (list == NULL) {
-        printf("Error: List is NULL\n");
+        debug_printf("Error: List is NULL\n");
         return 0;
     }
 
     temp_metric *node = malloc(sizeof(temp_metric));
     if (node == NULL) {
-        printf("Error: Failed to allocate memory for node\n");
+        debug_printf("Error: Failed to allocate memory for node\n");
         return 0;
     }
 
