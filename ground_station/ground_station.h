@@ -41,7 +41,11 @@ int get_st_leader_gs();
 
 void perform_gs_leader_election(int coordinator_rank, int rank, MPI_Comm comm);
 
-int get_min_dist_gs(int rank, status_check data, MPI_Comm group_comm, MPI_Datatype stat_check_datatype);
+void calc_dist_and_broadcast(const int rank, int sender, const status_check data, MPI_Comm group_comm,
+                             MPI_Datatype stat_check_datatype);
+
+int get_min_dist_gs(int rank, const int group_size, status_check data, MPI_Comm group_comm,
+                    MPI_Datatype stat_check_datatype);
 
 void send_check_count_to_leader(int rank, sync *data, int source_rank, MPI_Comm group_comm, MPI_Datatype sync_datatype);
 

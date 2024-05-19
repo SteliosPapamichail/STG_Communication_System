@@ -240,41 +240,111 @@ void perform_gs_leader_election(int coordinator_rank, int rank, MPI_Comm comm) {
     }
 }
 
-int get_min_dist_gs(const int rank, const status_check data, MPI_Comm group_comm, MPI_Datatype stat_check_datatype) {
-    int converged = 0;
-    double distance = calc_distance(data.st_coords[0], data.st_coords[1], data.st_coords[2], station_coordinates[0],
-                                    station_coordinates[1], station_coordinates[2]);
-
+void calc_dist_and_broadcast(const int rank, const int sender, const status_check data, MPI_Comm group_comm,
+                             MPI_Datatype stat_check_datatype) {
+    const double distance = calc_distance(data.st_coords[0], data.st_coords[1], data.st_coords[2],
+                                          station_coordinates[0],
+                                          station_coordinates[1], station_coordinates[2]);
+    MPI_Status status;
+    int flag;
     struct stat_check_gs stat_check_gs;
     stat_check_gs.gs_rank = rank;
     stat_check_gs.distance = distance;
 
+
+    //TODO:SP maybe use a seperate datatype for REPLY
+
     // pass distance to neighbors
     for (int i = 0; i < num_of_neighbors; i++) {
-        printf("-- GS %d sending find min to neighbor %d\n", rank, neighbor_gs[i]);
-        MPI_Send(&stat_check_gs, 1, stat_check_datatype, neighbor_gs[i], FIND_MIN_DIST, group_comm);
+        if (sender != neighbor_gs[i]) {
+            // notify neighbors to calc their distance
+            printf("process %d sending find min to neighbor %d\n", rank, neighbor_gs[i]);
+            MPI_Send(&data, 1, stat_check_datatype, neighbor_gs[i], FIND_MIN_DIST,
+                     group_comm);
+        } else {
+            // notify sender of our calculation
+            MPI_Send(&stat_check_gs, 1, stat_check_datatype, sender, FIND_DIST_REPLY, group_comm);
+            printf("process %d notified sender %d of its distance\n", rank, sender);
+        }
+    }
+
+    do {
+        MPI_Iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, group_comm, &flag, &status);
+
+        if (flag) {
+            if (status.MPI_TAG == FIND_DIST_REPLY) {
+                MPI_Recv(&stat_check_gs, 1, stat_check_datatype, status.MPI_SOURCE, FIND_DIST_REPLY, group_comm,
+                         &status);
+                printf("process %d got REPLY from %d via %d\n", rank, stat_check_gs.gs_rank, status.MPI_SOURCE);
+                for (int i = 0; i < num_of_neighbors; i++) {
+                    if (status.MPI_SOURCE != neighbor_gs[i]) {
+                        // forward reply
+                        printf("process %d sending REPLY to neighbor %d\n", rank, neighbor_gs[i]);
+                        MPI_Send(&stat_check_gs, 1, stat_check_datatype, neighbor_gs[i], FIND_DIST_REPLY, group_comm);
+                    }
+                }
+            } else if (status.MPI_TAG == TERMINATE_FIND_DIST) {
+                MPI_Recv(NULL, 0, MPI_INT, status.MPI_SOURCE, TERMINATE_FIND_DIST, group_comm, &status);
+                printf("process %d got TERMINATE_FIND_DIST from %d\n", rank, status.MPI_SOURCE);
+                for (int i = 0; i < num_of_neighbors; i++) {
+                    if (status.MPI_SOURCE != neighbor_gs[i]) {
+                        // forward reply
+                        printf("process %d sending TERMINATE_FIND_DIST to neighbor %d\n", rank, neighbor_gs[i]);
+                        MPI_Send((void *) 0, 0, MPI_INT, neighbor_gs[i], TERMINATE_FIND_DIST, group_comm);
+                    }
+                }
+                break;
+            }
+        }
+    } while (1);
+
+    printf("!!! process %d exited calculations\n", rank);
+}
+
+int get_min_dist_gs(const int rank, const int group_size, const status_check data, MPI_Comm group_comm,
+                    MPI_Datatype stat_check_datatype) {
+    int replies = 0;
+    int min_gs = rank;
+    const double distance = calc_distance(data.st_coords[0], data.st_coords[1], data.st_coords[2],
+                                          station_coordinates[0],
+                                          station_coordinates[1], station_coordinates[2]);
+    MPI_Status status;
+    struct stat_check_gs stat_check_gs;
+
+    // pass distance to neighbors
+    for (int i = 0; i < num_of_neighbors; i++) {
+        printf("process leader %d sending find min to neighbor %d\n", rank, neighbor_gs[i]);
+        MPI_Send(&data, 1, stat_check_datatype, neighbor_gs[i], FIND_MIN_DIST, group_comm);
     }
 
     do {
         double updated_distance = distance;
-
-        for (int i = 0; i < num_of_neighbors; i++) {
-            printf("waiting for reply... (%d)\n", rank);
-            MPI_Recv(&stat_check_gs, 1, stat_check_datatype, neighbor_gs[i], 100, group_comm, MPI_STATUS_IGNORE);
-            if (stat_check_gs.distance < updated_distance) {
-                updated_distance = stat_check_gs.distance;
-            }
+        printf("leader waiting for reply... (%d)\n", rank);
+        MPI_Recv(&stat_check_gs, 1, stat_check_datatype, MPI_ANY_SOURCE, FIND_DIST_REPLY, group_comm, &status);
+        printf("process %d got reply from %d via %d with distance %f\n", rank, stat_check_gs.gs_rank, status.MPI_SOURCE,
+               stat_check_gs.distance);
+        if (stat_check_gs.distance < updated_distance) {
+            printf("sender had smaller distance (%f) than leader (%f) and is now min_Gs\n", stat_check_gs.distance,
+                   updated_distance);
+            updated_distance = stat_check_gs.distance;
+            min_gs = status.MPI_SOURCE;
         }
+        replies++;
+
+        printf("REPLIES = %d\n", replies);
 
         // Check for convergence
-        if (updated_distance == distance) {
-            converged = 1;
-        } else {
-            distance = updated_distance;
+        if (replies == group_size - 1) {
+            for (int i = 0; i < num_of_neighbors; i++) {
+                printf("process %d sending TERMINATE_FIND_DIST to %d\n", rank, neighbor_gs[i]);
+                MPI_Send((void *) 0, 0, MPI_INT, neighbor_gs[i], TERMINATE_FIND_DIST, group_comm);
+            }
+            break;
         }
-    } while (!converged);
+    } while (1);
 
-    return distance;
+    printf("=============== found min_gs = %d\n", min_gs);
+    return min_gs;
 }
 
 void send_check_count_to_leader(const int rank, sync *data, const int source_rank, MPI_Comm group_comm,
@@ -307,14 +377,6 @@ void write_status_file(const int rank) {
     if (file == NULL) {
         fprintf(stderr, "Failed to create file\n");
         return;
-    }
-
-    //todo:REMOVE TEST DATA
-    status_info test;
-    for (int i = 0; i < 5; i++) {
-        test.satellite_rank = i;
-        test.status = 31.54141;
-        save_status(test);
     }
 
     for (int i = 0; i < num_of_status_checks_performed; i++) {
