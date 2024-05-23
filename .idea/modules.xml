@@ -3,6 +3,7 @@
   <component name="ProjectModuleManager">
     <modules>
       <module fileurl="file://$PROJECT_DIR$/.idea/STG_Communication_System.iml" filepath="$PROJECT_DIR$/.idea/STG_Communication_System.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/Writerside.iml" filepath="$PROJECT_DIR$/.idea/Writerside.iml" />
     </modules>
   </component>
 </project>
