@@ -174,8 +174,7 @@ coordinates given by <coordinates>.
 processes, lgs with the following information, <satellite_id> and
 <satellite_coordinates>. The lgs process should perform a broadcast
 algorithm to ensure that it is informed (via a convergecast protocol) of the
-ground station process with the shortest distance from the satellite with id <satellite_id
-> and <satellite_coordinates> coordinates. It
+ground station process with the shortest distance from the satellite with id <satellite_id> and <satellite_coordinates> coordinates. It
 then notifies that process to handle the
 request, using the tree. `min_gs` must send the request (STATUS_CHECK) to the
 <satellite_id> process and wait for a response message, which contains its operational health status,
