@@ -7,6 +7,8 @@ satellite.
 This project is implemented in C using the Message Passing Interface
 (MPI).
 
+![](assets/intro.jpeg "Intro graphic")
+
 ## Compilation
 Simply run `make all` to compile the program or `make clean` to
 remove all generated files.
